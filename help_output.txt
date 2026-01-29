@@ -1,0 +1,24 @@
+﻿Usage: @trigger.dev/cli dev [options] [path]
+
+Tunnel your local project to Trigger.dev and start running jobs
+
+Arguments:
+  path                               The path to the project (default: ".")
+
+Options:
+  -p, --port <port>                  Override the local port your server is on
+  -H, --hostname <hostname>          Override the hostname on which the
+                                     application is served
+  -e, --env-file <name>              Override the name of the env file to load
+  -i, --client-id <name>             The ID of the client to use for this
+                                     project. Will use the value from the
+                                     package.json file if not provided.
+  -h, --handler-path <handler path>  The URI path to the API handler function
+                                     to use for this project. (default:
+                                     "/api/trigger")
+  -t, --tunnel <url>                 An optional custom tunnel URL. Use only if
+                                     you already have an open tunnel to your
+                                     local dev server.
+  -s, --https                        allows enabled https for the tunnel
+  -v, --version                      Display the version number
+  --help                             display help for command

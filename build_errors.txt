@@ -1,0 +1,103 @@
+﻿
+> weavy-clone@0.1.0 build
+> next build
+
+Γû▓ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 4.4s
+  Running TypeScript ...
+node.exe : Failed to 
+compile.
+At line:1 char:1
++ & "C:\Program Files
+\nodejs/node.exe" 
+"C:\Users\SHREYAS 
+URADE\AppData\ ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (Failed    
+ to compile.:Stri    
+ng) [], RemoteEx    
+ception
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
+
+./src/app/api/workflo
+ws/execute/route.ts:7
+0:49
+Type error: Argument 
+of type 'Node[]' is 
+not assignable to 
+parameter of type 'No
+de<WorkflowNodeData>[
+]'.
+  Type 'Node' is not 
+assignable to type 'N
+ode<WorkflowNodeData>
+'.
+    Type 'Node' is 
+not assignable to 
+type '{ id: string; 
+position: 
+XYPosition; data: 
+WorkflowNodeData; 
+sourcePosition?: 
+Position | 
+undefined; 
+targetPosition?: 
+Position | 
+undefined; ... 19 
+more ...; measured?: 
+{ ...; } | 
+undefined; }'.
+      Types of 
+property 'data' are 
+incompatible.
+        Type 
+'Record<string, 
+unknown>' is not 
+assignable to type 
+'WorkflowNodeData'.
+
+[0m [90m 68 |[39m
+ [90m 69 |[39m     
+    [90m// Get 
+execution layers[39m
+[31m[1m>[22m[39m
+[90m 70 |[39m       
+  [36mconst[39m 
+executionLayers 
+[33m=[39m topologic
+alSort(nodesToExecute
+[33m,[39m 
+edges)[33m;[39m
+ [90m    |[39m     
+                     
+                     
+  
+[31m[1m^[22m[39m
+ [90m 71 |[39m
+ [90m 72 |[39m     
+    [90m// Store 
+outputs for 
+reference[39m
+ [90m 73 |[39m     
+    [36mconst[39m 
+nodeOutputs 
+[33m=[39m 
+[36mnew[39m [33mMa
+p[39m[33m<[39m[33
+mstring[39m[33m,[3
+9m unknown[33m>[39m
+()[33m;[39m[0m
+Next.js build worker 
+exited with code: 1 
+and signal: null
