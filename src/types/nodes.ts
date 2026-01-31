@@ -19,6 +19,7 @@ export interface BaseNodeData {
   status?: NodeStatus;
   output?: unknown;
   error?: string;
+  isLocked?: boolean;
   [key: string]: unknown; // Index signature for React Flow compatibility
 }
 
@@ -96,7 +97,7 @@ export interface NodeConfig {
 // Node configuration map
 export const NODE_CONFIG: Record<NodeType, NodeConfig> = {
   text: {
-    label: 'Text',
+    label: 'Prompt',
     color: '#3b82f6', // blue
     icon: 'Type',
     inputs: [],

@@ -33,7 +33,7 @@ interface WorkflowState {
     setWorkflowName: (name: string) => void;
 
     // Node actions
-    addNode: (type: NodeType, position: { x: number; y: number }) => void;
+    addNode: (type: NodeType, position: { x: number; y: number }, initialData?: Partial<WorkflowNodeData>) => void;
     updateNodeData: (nodeId: string, data: Partial<WorkflowNodeData>) => void;
     deleteNode: (nodeId: string) => void;
     onNodesChange: (changes: NodeChange[]) => void;
@@ -98,7 +98,7 @@ export const useWorkflowStore = create<WorkflowState>()(
 
                 setWorkflowName: (name) => set({ workflowName: name }),
 
-                addNode: (type, position) => {
+                addNode: (type, position, initialData) => {
                     const config = NODE_CONFIG[type];
                     const newNode: Node<WorkflowNodeData> = {
                         id: generateNodeId(),
@@ -114,6 +114,8 @@ export const useWorkflowStore = create<WorkflowState>()(
                             ...(type === 'llm' && { model: 'gemini-2.0-flash-exp', systemPrompt: '', userMessage: '', images: [], response: '' }),
                             ...(type === 'cropImage' && { imageUrl: undefined, xPercent: 0, yPercent: 0, widthPercent: 100, heightPercent: 100 }),
                             ...(type === 'extractFrame' && { videoUrl: undefined, timestamp: '0' }),
+                            // Override with initial data
+                            ...initialData,
                         } as WorkflowNodeData,
                     };
 
@@ -161,8 +163,9 @@ export const useWorkflowStore = create<WorkflowState>()(
                         target: connection.target,
                         sourceHandle: connection.sourceHandle || 'output',
                         targetHandle: connection.targetHandle || 'input',
-                        animated: true,
-                        style: { stroke: '#a855f7', strokeWidth: 2 },
+                        animated: false,
+                        style: { stroke: '#F1A0FA', strokeWidth: 4 },
+                        markerEnd: 'dot',
                     };
 
                     set((state) => ({

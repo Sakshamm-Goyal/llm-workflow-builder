@@ -241,10 +241,14 @@ function WorkflowCanvasInner() {
                 fitView
                 snapToGrid
                 snapGrid={[16, 16]}
+                minZoom={0.1}
+                maxZoom={4}
                 defaultEdgeOptions={{
-                    animated: true,
-                    style: { stroke: '#a855f7', strokeWidth: 2 },
+                    animated: false,
+                    style: { stroke: '#F1A0FA', strokeWidth: 4 },
+                    markerEnd: 'dot',
                 }}
+                connectionLineStyle={{ stroke: '#F1A0FA', strokeWidth: 4 }}
                 proOptions={{ hideAttribution: true }}
                 className="bg-gray-950"
                 // Interaction props based on active tool
@@ -258,6 +262,21 @@ function WorkflowCanvasInner() {
                 // Selection box styling
                 selectionKeyCode={null}    // No key required for selection (just drag)
             >
+                <svg style={{ position: 'absolute', top: 0, left: 0, height: 0, width: 0, pointerEvents: 'none' }}>
+                    <defs>
+                        <marker
+                            id="dot"
+                            viewBox="0 0 10 10"
+                            refX="5"
+                            refY="5"
+                            markerWidth="5"
+                            markerHeight="5"
+                            orient="auto-start-reverse"
+                        >
+                            <circle cx="5" cy="5" r="5" fill="#F1A0FA" />
+                        </marker>
+                    </defs>
+                </svg>
                 <Background
                     variant={BackgroundVariant.Dots}
                     gap={20}
