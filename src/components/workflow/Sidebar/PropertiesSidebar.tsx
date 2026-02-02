@@ -44,7 +44,7 @@ export default function PropertiesSidebar() {
     };
 
     return (
-        <div className="w-[300px] bg-[#151517] h-full border-l border-[#2C2C2E] flex flex-col z-20">
+        <div className="w-[300px] bg-[#212126] h-full border-l border-[#2C2C2E] flex flex-col z-20">
             {/* Header */}
             <div className="px-5 py-4 border-b border-[#2C2C2E]">
                 <h2 className="text-sm font-semibold text-gray-200">Run Any LLM</h2>

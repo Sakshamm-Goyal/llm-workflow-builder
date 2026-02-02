@@ -31,7 +31,7 @@ export default function IconSidebar({ activeSection, onSectionClick }: IconSideb
     ];
 
     return (
-        <div className="w-[52px] bg-[#0E0E10] flex flex-col items-center py-4 z-30">
+        <div className="w-[52px] bg-[#212126] flex flex-col items-center py-4 z-30">
             {/* Logo / Home */}
             <Link
                 href="/dashboard"

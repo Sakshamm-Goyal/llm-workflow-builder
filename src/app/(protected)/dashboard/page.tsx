@@ -111,17 +111,18 @@ export default function DashboardPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#050505] flex font-[family-name:var(--font-dm-sans)] text-xs text-gray-200">
+        <div className="min-h-screen bg-[#0E0E13] flex font-[family-name:var(--font-dm-sans)] text-xs text-gray-200">
             {/* Left Sidebar */}
-            <aside className="w-[240px] bg-[#050505] border-r border-[#1C1C1E] flex flex-col justify-between py-4">
+            <aside className="w-[240px] bg-[#0E0E13] border-r border-gray-800 flex flex-col justify-between py-4">
                 <div>
                     {/* User Profile Dropdown */}
-                    <div className="px-4 mb-6">
+                    <div className="px-4 mb-8">
                         <button className="flex items-center gap-2 text-sm font-medium text-gray-300 hover:text-white transition-colors select-none">
                             <UserButton
                                 appearance={{
                                     elements: {
-                                        avatarBox: "w-6 h-6 rounded-full",
+                                        userButtonAvatarBox: "w-6 h-6 !w-6 !h-6",
+                                        avatarBox: "w-6 h-6 !w-6 !h-6",
                                     },
                                 }}
                             />
@@ -133,13 +134,13 @@ export default function DashboardPage() {
                     </div>
 
                     {/* Create Button */}
-                    <div className="px-4 mb-6">
+                    <div className="px-2 mb-6">
                         <button
                             onClick={handleCreateNew}
                             disabled={isCreating}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-[#E1E476] hover:bg-[#d4d765] disabled:opacity-50 text-black text-sm font-semibold rounded-md transition-colors select-none"
+                            className="w-[223px] flex items-center justify-center gap-1 px-0 py-[7px] bg-[#F7FFA8] hover:bg-[#FAFFC7] disabled:opacity-50 text-black text-[14px] font-medium rounded-sm transition-colors select-none"
                         >
-                            <Plus className="w-4 h-4" />
+                            <Plus className="w-4.5 h-4.5 stroke-[1px]" />
                             {isCreating ? 'Creating...' : 'Create New File'}
                         </button>
                     </div>
@@ -147,7 +148,7 @@ export default function DashboardPage() {
                     {/* Navigation */}
                     <nav className="px-2 space-y-1">
                         {/* My Files - Active State */}
-                        <div className="flex items-center justify-between group px-3 py-2 bg-[#1C1C1E] rounded-md text-white cursor-pointer select-none">
+                        <div className="flex items-center justify-between group px-4.5 py-[10px] bg-[#212126] rounded-sm text-white cursor-pointer select-none">
                             <div className="flex items-center gap-3">
                                 <Folder className="w-4 h-4" fill="currentColor" />
                                 <span className="text-sm font-medium">My Files</span>
@@ -156,13 +157,13 @@ export default function DashboardPage() {
                         </div>
 
                         {/* Shared with me */}
-                        <button className="w-full flex items-center gap-3 px-3 py-2 text-[#666] hover:text-white hover:bg-[#1C1C1E]/50 rounded-md transition-colors select-none">
+                        <button className="w-full flex items-center gap-3 px-4.5 py-[10px] text-[#666] hover:text-white hover:bg-[#1C1C1E]/50 rounded-sm transition-colors select-none">
                             <Users className="w-4 h-4" />
                             <span className="text-sm font-medium">Shared with me</span>
                         </button>
 
                         {/* Apps */}
-                        <button className="w-full flex items-center gap-3 px-3 py-2 text-[#666] hover:text-white hover:bg-[#1C1C1E]/50 rounded-md transition-colors select-none">
+                        <button className="w-full flex items-center gap-3 px-4.5 py-[10px] text-[#666] hover:text-white hover:bg-[#1C1C1E]/50 rounded-md transition-colors select-none">
                             <LayoutGrid className="w-4 h-4" />
                             <span className="text-sm font-medium">Apps</span>
                         </button>
@@ -187,31 +188,31 @@ export default function DashboardPage() {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto px-8 py-6">
+            <main className="flex-1 overflow-y-auto px-17 py-9">
                 {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <h1 className="text-sm font-medium text-gray-400 select-none">
+                <div className="flex items-center justify-between mb-9">
+                    <h1 className="text-[14px] font-regular text-white select-none">
                         {user?.firstName || user?.username || 'User'}&apos;s Workspace
                     </h1>
                     <button
                         onClick={handleCreateNew}
                         disabled={isCreating}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-[#E1E476] hover:bg-[#d4d765] disabled:opacity-50 text-black text-xs font-semibold rounded transition-colors select-none"
+                        className="flex items-center justify-center gap-1 px-3.5 py-1.75 bg-[#F7FFA8] hover:bg-[#FAFFC7] disabled:opacity-50 text-black text-[14px] font-regular rounded transition-colors select-none"
                     >
-                        <Plus className="w-3.5 h-3.5" />
+                        <Plus className="w-4.5 h-4.5" />
                         {isCreating ? 'Creating...' : 'Create New File'}
                     </button>
                 </div>
 
                 {/* Workflow Library Section */}
-                <section className="mb-12">
-                    <div className="bg-[#101012] rounded-xl p-6 border border-[#1C1C1E] select-none">
+                <section className="mb-9">
+                    <div className="bg-[#212126] rounded-lg px-4.5 py-3 border border-[#1C1C1E] select-none">
                         {/* Tabs */}
-                        <div className="flex items-center gap-4 mb-6">
+                        <div className="flex items-center gap-0 mb-3">
                             <button
                                 onClick={() => setActiveTab('library')}
-                                className={`text-sm font-medium px-3 py-1.5 rounded-md transition-all select-none ${activeTab === 'library'
-                                    ? 'bg-[#2C2C2E] text-white shadow-sm'
+                                className={`text-[12px] font-regular justify-center px-2 py-0.5 rounded-sm transition-all select-none ${activeTab === 'library'
+                                    ? 'bg-[#353539] text-white shadow-sm'
                                     : 'text-gray-400 hover:text-white'
                                     }`}
                             >
@@ -219,7 +220,7 @@ export default function DashboardPage() {
                             </button>
                             <button
                                 onClick={() => setActiveTab('tutorials')}
-                                className={`text-sm font-medium px-3 py-1.5 rounded-md transition-all select-none ${activeTab === 'tutorials'
+                                className={`text-[12px] font-regular px-3 py-1.5 rounded-md transition-all select-none ${activeTab === 'tutorials'
                                     ? 'bg-[#2C2C2E] text-white shadow-sm'
                                     : 'text-gray-400 hover:text-white'
                                     }`}
@@ -236,7 +237,7 @@ export default function DashboardPage() {
                                     href={`/workflows/new?template=${template.id}`}
                                     className="flex-shrink-0 group relative snap-start"
                                 >
-                                    <div className="w-[200px] h-[110px] rounded-lg overflow-hidden relative">
+                                    <div className="w-[170px] h-[115px] rounded-lg overflow-hidden relative">
                                         <div className={`absolute inset-0 bg-gradient-to-br ${template.color} opacity-80 group-hover:opacity-100 transition-opacity`}>
                                             <img
                                                 src={template.image}
@@ -245,7 +246,7 @@ export default function DashboardPage() {
                                             />
                                         </div>
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                                        <p className="absolute bottom-3 left-3 text-[13px] font-medium text-white z-10 leading-tight select-none">
+                                        <p className="absolute bottom-3 left-3 text-[12px] font-regular text-white z-10 leading-tight select-none">
                                             {template.name}
                                         </p>
                                     </div>
@@ -258,8 +259,8 @@ export default function DashboardPage() {
                 {/* My Files Section */}
                 <section className="flex-1">
                     {/* Section Header */}
-                    <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-sm font-medium text-gray-300 select-none">My files</h2>
+                    <div className="flex items-center justify-between mb-9">
+                        <h2 className="text-[14px] font-regular px-1.5 text-white select-none">My files</h2>
 
                         <div className="flex items-center gap-4">
                             {/* Search */}
@@ -329,7 +330,7 @@ export default function DashboardPage() {
                     ) : (
                         /* Workflow Grid */
                         <div className={viewMode === 'grid'
-                            ? "grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+                            ? "flex flex-wrap gap-[16px]"
                             : "flex flex-col gap-2"
                         }>
                             {filteredWorkflows.map((workflow) => (
@@ -340,7 +341,7 @@ export default function DashboardPage() {
                                 >
                                     {viewMode === 'grid' ? (
                                         <>
-                                            <div className="aspect-[4/3] rounded-lg bg-[#1C1C1E] border border-[#2C2C2E] group-hover:border-[#E1E476]/50 transition-colors overflow-hidden relative">
+                                            <div className="h-[240px] w-[210px] rounded-lg bg-[#212126] border border-[#323237] group-hover:bg-[#424247] group-hover:border-[#E1E476]/50 transition-colors overflow-hidden relative">
                                                 <div className="w-full h-full flex items-center justify-center">
                                                     {/* Workflow node icon */}
                                                     <svg width="48" height="48" viewBox="0 0 48 48" fill="none" className="text-gray-600 group-hover:text-gray-400 transition-colors">
@@ -352,9 +353,9 @@ export default function DashboardPage() {
                                                     </svg>
                                                 </div>
                                             </div>
-                                            <div className="mt-3 px-1 select-none">
+                                            <div className="mt-1.5 px-2 select-none">
                                                 <p className="text-sm text-gray-200 truncate group-hover:text-[#E1E476] transition-colors">{workflow.name}</p>
-                                                <p className="text-[11px] text-gray-600 mt-0.5">
+                                                <p className="text-[12px] text-[#A8A8AA] mt-0">
                                                     {formatRelativeTime(workflow.updatedAt)}
                                                 </p>
                                             </div>

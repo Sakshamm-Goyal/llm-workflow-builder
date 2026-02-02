@@ -183,7 +183,7 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
     if (!isOpen) return null;
 
     return (
-        <div className="w-80 bg-[#0E0E10] border-l border-[#1C1C1E] flex flex-col h-full">
+        <div className="w-80 bg-[#212126] border-l border-[#1C1C1E] flex flex-col h-full">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#1C1C1E]">
                 <div className="flex items-center gap-2">
