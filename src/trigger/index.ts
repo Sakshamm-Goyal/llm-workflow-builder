@@ -1,182 +1,134 @@
 import { task } from "@trigger.dev/sdk/v3";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import sharp from "sharp";
 
-// Base URL for API calls - adjust for your deployment
-const API_BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-// ============================================
-// LLM Task - Gemini API Integration
-// ============================================
-interface LLMTaskPayload {
-    model: string;
-    systemPrompt: string;
-    userMessage: string;
-    images: string[];
-    nodeId: string;
-    runId: string;
-}
-
+// ============================================================
+// LLM Execution Task - Uses Google Gemini API
+// ============================================================
 export const llmTask = task({
     id: "llm-execution",
-    maxDuration: 120,
-    retry: {
-        maxAttempts: 2,
-    },
-    run: async (payload: LLMTaskPayload) => {
-        const { model, systemPrompt, userMessage, images, nodeId, runId } = payload;
+    retry: { maxAttempts: 2 },
+    run: async (payload: {
+        prompt: string;
+        model?: string;
+        images?: string[];
+    }) => {
+        const modelId = payload.model || "groq:meta-llama/llama-4-scout-17b-16e-instruct";
 
-        const apiKey = process.env.GOOGLE_AI_API_KEY;
-        if (!apiKey) {
-            throw new Error("GOOGLE_AI_API_KEY is not configured");
-        }
+        // Route to Groq or Gemini
+        if (modelId.startsWith("groq:")) {
+            const Groq = (await import("groq-sdk")).default;
+            const apiKey = process.env.GROQ_API_KEY;
+            if (!apiKey) throw new Error("GROQ_API_KEY not set");
 
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const modelInstance = genAI.getGenerativeModel({ model });
+            const groq = new Groq({ apiKey });
+            const completion = await groq.chat.completions.create({
+                model: modelId.replace("groq:", ""),
+                messages: [{ role: "user", content: payload.prompt }],
+                temperature: 0.7,
+                max_tokens: 4096,
+            });
 
-        const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+            return { text: completion.choices[0]?.message?.content || "" };
+        } else {
+            const { GoogleGenerativeAI } = await import("@google/generative-ai");
+            const apiKey = process.env.GOOGLE_AI_API_KEY;
+            if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not set");
 
-        if (systemPrompt) {
-            parts.push({ text: `System: ${systemPrompt}\n\n` });
-        }
+            const genAI = new GoogleGenerativeAI(apiKey);
+            const model = genAI.getGenerativeModel({ model: modelId });
 
-        parts.push({ text: userMessage });
-
-        for (const imageUrl of images) {
-            try {
-                const response = await fetch(imageUrl);
-                const buffer = await response.arrayBuffer();
-                const base64 = Buffer.from(buffer).toString("base64");
-                const mimeType = response.headers.get("content-type") || "image/jpeg";
-
-                parts.push({
-                    inlineData: {
-                        mimeType,
-                        data: base64,
-                    },
-                });
-            } catch (error) {
-                console.warn(`Failed to fetch image: ${imageUrl}`, error);
+            const parts: any[] = [{ text: payload.prompt }];
+            if (payload.images?.length) {
+                for (const img of payload.images) {
+                    const base64Match = img.match(/^data:(.+);base64,(.+)$/);
+                    if (base64Match) {
+                        parts.push({
+                            inlineData: { mimeType: base64Match[1], data: base64Match[2] },
+                        });
+                    }
+                }
             }
+
+            const result = await model.generateContent(parts);
+            return { text: result.response.text() };
         }
-
-        const result = await modelInstance.generateContent(parts);
-        const response = result.response;
-        const text = response.text();
-
-        return {
-            nodeId,
-            runId,
-            response: text,
-            model,
-            tokensUsed: response.usageMetadata?.totalTokenCount || 0,
-        };
     },
 });
 
-// ============================================
-// Crop Image Task - Transloadit Integration
-// ============================================
-interface CropImagePayload {
-    imageUrl: string;
-    x: number;      // x coordinate in pixels
-    y: number;      // y coordinate in pixels
-    width: number;  // width in pixels
-    height: number; // height in pixels
-    nodeId: string;
-    runId: string;
-}
-
+// ============================================================
+// Crop Image Task - Uses Sharp for image processing
+// ============================================================
 export const cropImageTask = task({
     id: "crop-image",
-    maxDuration: 120,
-    retry: {
-        maxAttempts: 2,
-    },
-    run: async (payload: CropImagePayload) => {
-        const { imageUrl, x, y, width, height, nodeId, runId } = payload;
+    retry: { maxAttempts: 2 },
+    run: async (payload: {
+        imageData: string;
+        crop: { x: number; y: number; width: number; height: number };
+        outputFormat?: string;
+    }) => {
+        let imageBuffer: Buffer;
 
-        if (!imageUrl) {
-            throw new Error("Image URL is required");
+        if (payload.imageData.startsWith("data:")) {
+            const base64Data = payload.imageData.split(",")[1];
+            imageBuffer = Buffer.from(base64Data, "base64");
+        } else if (
+            payload.imageData.startsWith("http://") ||
+            payload.imageData.startsWith("https://")
+        ) {
+            const response = await fetch(payload.imageData);
+            const arrayBuffer = await response.arrayBuffer();
+            imageBuffer = Buffer.from(arrayBuffer);
+        } else {
+            imageBuffer = Buffer.from(payload.imageData, "base64");
         }
 
-        // Call our processing API which uses Transloadit
-        const response = await fetch(`${API_BASE_URL}/api/process`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                type: "crop",
-                fileUrl: imageUrl,
-                x: x || 0,
-                y: y || 0,
-                width: width || 100,
-                height: height || 100,
-            }),
-        });
+        const { x, y, width, height } = payload.crop;
+        const croppedBuffer = await sharp(imageBuffer)
+            .extract({
+                left: Math.round(x),
+                top: Math.round(y),
+                width: Math.round(width),
+                height: Math.round(height),
+            })
+            .toFormat((payload.outputFormat as any) || "png")
+            .toBuffer();
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`Crop failed: ${error.error || response.statusText}`);
-        }
-
-        const result = await response.json();
-
-        return {
-            nodeId,
-            runId,
-            croppedUrl: result.resultUrl,
-            cropDimensions: { x, y, width, height },
-            assemblyId: result.assemblyId,
-        };
+        const format = payload.outputFormat || "png";
+        const mimeType = `image/${format}`;
+        const base64 = croppedBuffer.toString("base64");
+        return { imageUrl: `data:${mimeType};base64,${base64}` };
     },
 });
 
-// ============================================
-// Extract Frame Task - Transloadit Integration
-// ============================================
-interface ExtractFramePayload {
-    videoUrl: string;
-    timestamp: number; // timestamp in seconds
-    nodeId: string;
-    runId: string;
-}
-
+// ============================================================
+// Extract Frame Task - Stub for video frame extraction
+// ============================================================
 export const extractFrameTask = task({
     id: "extract-frame",
-    maxDuration: 180,
-    retry: {
-        maxAttempts: 2,
-    },
-    run: async (payload: ExtractFramePayload) => {
-        const { videoUrl, timestamp, nodeId, runId } = payload;
+    retry: { maxAttempts: 1 },
+    run: async (payload: {
+        videoUrl: string;
+        timestamp?: number;
+        format?: string;
+    }) => {
+        // Production deployment options:
+        // 1. Deploy to Trigger.dev Cloud with FFmpeg extension
+        // 2. Use an external video processing API
+        // 3. Install FFmpeg in your deployment environment
+        //
+        // For now, this returns a helpful error message indicating
+        // that FFmpeg is required for frame extraction.
+        console.log(
+            `[Extract Frame] Received request for video: ${payload.videoUrl?.substring(0, 50)}...`
+        );
+        console.log(
+            `[Extract Frame] Timestamp: ${payload.timestamp || 0}, Format: ${payload.format || "png"}`
+        );
 
-        if (!videoUrl) {
-            throw new Error("Video URL is required");
-        }
-
-        // Call our processing API which uses Transloadit
-        const response = await fetch(`${API_BASE_URL}/api/process`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                type: "frame",
-                fileUrl: videoUrl,
-                timestamp: timestamp || 0,
-            }),
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(`Frame extraction failed: ${error.error || response.statusText}`);
-        }
-
-        const result = await response.json();
-
-        return {
-            nodeId,
-            runId,
-            frameUrl: result.resultUrl,
-            timestamp,
-            assemblyId: result.assemblyId,
-        };
+        throw new Error(
+            "Extract Frame requires FFmpeg. Deploy to Trigger.dev Cloud with the FFmpeg build extension, " +
+            "or configure FFmpeg in your deployment environment. " +
+            "See: https://trigger.dev/docs/guides/frameworks/nextjs"
+        );
     },
 });

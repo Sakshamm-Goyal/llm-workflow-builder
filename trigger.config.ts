@@ -4,7 +4,7 @@ export default defineConfig({
     project: "proj_rdsuxydrzxxorhlynnfd",
     runtime: "node",
     logLevel: "log",
-    maxDuration: 300, // 5 minutes max per task
+    maxDuration: 300,
     retries: {
         enabledInDev: true,
         default: {

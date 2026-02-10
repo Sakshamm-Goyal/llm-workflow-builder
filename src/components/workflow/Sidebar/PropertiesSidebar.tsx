@@ -6,11 +6,15 @@ import { Info, Sparkles } from 'lucide-react';
 import { LLMNodeData } from '@/types/nodes';
 
 const MODELS = [
+    // Groq models (free tier, currently active)
+    { id: 'groq:meta-llama/llama-4-scout-17b-16e-instruct', name: '⚡👁 Llama 4 Scout 17B (Groq)' },
+    { id: 'groq:meta-llama/llama-4-maverick-17b-128e-instruct', name: '⚡ Llama 4 Maverick 17B (Groq)' },
+    { id: 'groq:llama-3.1-8b-instant', name: '⚡ Llama 3.1 8B Instant (Groq)' },
+    { id: 'groq:qwen/qwen3-32b', name: '⚡ Qwen 3 32B (Groq)' },
+    // Gemini models (free tier)
     { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-    { id: 'gemini-1.5-pro-002', name: 'Gemini 1.5 Pro' },
-    { id: 'gemini-1.5-flash-002', name: 'Gemini 1.5 Flash' },
-    { id: 'gpt-4o', name: 'GPT-4o' },
-    { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet' },
+    { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
+    { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' },
 ];
 
 export default function PropertiesSidebar() {
@@ -83,7 +87,7 @@ export default function PropertiesSidebar() {
                     </div>
                     <div className="relative">
                         <select
-                            value={data.model || 'gemini-2.0-flash'}
+                            value={data.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct'}
                             onChange={handleModelChange}
                             className="w-full bg-[#1C1C1E] border border-[#2C2C2E] rounded-lg px-3 py-2.5 text-xs text-gray-200 focus:outline-none focus:border-gray-500 appearance-none"
                         >

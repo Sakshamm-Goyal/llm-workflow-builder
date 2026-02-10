@@ -188,34 +188,27 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
     if (!isOpen) return null;
 
     return (
-        <div className="w-80 bg-[#212126] border-l border-[#1C1C1E] flex flex-col h-full">
+        <div className="w-[360px] bg-[#212126] border border-[#1C1C1E] rounded-2xl flex flex-col max-h-[600px] shadow-2xl overflow-hidden pointer-events-auto">
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b border-[#1C1C1E]">
-                <div className="flex items-center gap-2">
-                    <History className="w-4 h-4 text-gray-400" />
-                    <h2 className="font-semibold text-white text-sm">Workflow History</h2>
-                </div>
+                <h2 className="font-mono text-sm text-gray-200">Task manager</h2>
                 <button
                     onClick={onClose}
-                    className="p-1 hover:bg-[#1C1C1E] rounded transition-colors"
+                    className="text-gray-400 hover:text-white transition-colors"
                 >
-                    <X className="w-4 h-4 text-gray-400" />
+                    <X className="w-4 h-4" />
                 </button>
             </div>
 
             {/* Runs List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto min-h-[100px]">
                 {isLoading && runs.length === 0 ? (
                     <div className="flex items-center justify-center py-8">
-                        <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+                        <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
                     </div>
                 ) : runs.length === 0 ? (
-                    <div className="text-center py-12 px-4">
-                        <History className="w-12 h-12 text-gray-700 mx-auto mb-3" />
-                        <p className="text-gray-500 text-sm">No runs yet</p>
-                        <p className="text-gray-600 text-xs mt-1">
-                            Execute your workflow to see history
-                        </p>
+                    <div className="p-4 text-gray-500 text-sm font-mono">
+                        No active runs
                     </div>
                 ) : (
                     <div className="divide-y divide-[#1C1C1E]">

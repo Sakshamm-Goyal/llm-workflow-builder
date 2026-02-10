@@ -3,9 +3,7 @@ import { WorkflowNodeData, NodeType } from '@/types/nodes';
 import { topologicalSort, getConnectedInputs } from './validation';
 import prisma from '@/lib/db';
 import { tasks } from "@trigger.dev/sdk/v3";
-import type { llmTask } from "@/trigger/tasks/llm-task";
-import type { cropImageTask } from "@/trigger/tasks/crop-image-task";
-import type { extractFrameTask } from "@/trigger/tasks/extract-frame-task";
+import type { llmTask, cropImageTask, extractFrameTask } from "@/trigger";
 
 export type ExecutionScope = 'FULL' | 'PARTIAL' | 'SINGLE';
 
@@ -179,30 +177,58 @@ export class WorkflowExecutor {
         });
 
         try {
-            // Gather inputs from connected nodes
-            const inputs = getConnectedInputs(node.id, this.nodes, this.edges);
+            // Build inputs from execution results (prioritize runtime data over static data)
+            const inputs: Record<string, unknown> = {};
 
-            // Merge with results from already-executed nodes
-            for (const [handleId, value] of Object.entries(inputs)) {
-                // If the input comes from a node we've already executed, use that output
-                const incomingEdge = this.edges.find(
-                    e => e.target === node.id && e.targetHandle === handleId
-                );
-                if (incomingEdge) {
-                    const sourceResult = this.results.get(incomingEdge.source);
-                    if (sourceResult?.output !== undefined) {
-                        if (handleId === 'images') {
+            console.log(`[Executor] Executing node: ${node.id} (${nodeType})`);
+
+            // Find all incoming edges
+            const incomingEdges = this.edges.filter(e => e.target === node.id);
+
+            for (const edge of incomingEdges) {
+                if (!edge.targetHandle) continue;
+
+                // First, try to get output from already-executed nodes (runtime results)
+                const sourceResult = this.results.get(edge.source);
+
+                if (sourceResult?.output !== undefined) {
+                    // Use execution result
+                    console.log(`[Executor] Input from executed node ${edge.source} -> ${edge.targetHandle}:`,
+                        typeof sourceResult.output === 'string' && sourceResult.output.startsWith('data:')
+                            ? `${sourceResult.output.substring(0, 50)}... (base64 data)`
+                            : sourceResult.output
+                    );
+
+                    if (edge.targetHandle === 'images') {
+                        // Handle multiple images
+                        const currentImages = (inputs['images'] as string[]) || [];
+                        if (typeof sourceResult.output === 'string') {
+                            currentImages.push(sourceResult.output);
+                        }
+                        inputs['images'] = currentImages;
+                    } else {
+                        inputs[edge.targetHandle] = sourceResult.output;
+                    }
+                } else {
+                    // Fallback to static node data if not executed yet
+                    const sourceNode = this.nodes.find(n => n.id === edge.source);
+                    if (sourceNode?.data.output !== undefined) {
+                        console.log(`[Executor] Input from static data ${edge.source} -> ${edge.targetHandle}:`, sourceNode.data.output);
+
+                        if (edge.targetHandle === 'images') {
                             const currentImages = (inputs['images'] as string[]) || [];
-                            if (typeof sourceResult.output === 'string') {
-                                currentImages.push(sourceResult.output);
+                            if (typeof sourceNode.data.output === 'string') {
+                                currentImages.push(sourceNode.data.output);
                             }
                             inputs['images'] = currentImages;
                         } else {
-                            inputs[handleId] = sourceResult.output;
+                            inputs[edge.targetHandle] = sourceNode.data.output;
                         }
                     }
                 }
             }
+
+            console.log(`[Executor] Final inputs for ${node.id}:`, inputs);
 
             // Execute based on node type
             let output: unknown;
@@ -231,6 +257,12 @@ export class WorkflowExecutor {
             }
 
             const duration = Date.now() - startTime;
+
+            console.log(`[Executor] Node ${node.id} completed in ${duration}ms with output:`,
+                typeof output === 'string' && output.startsWith('data:')
+                    ? `${output.substring(0, 50)}... (base64 data)`
+                    : output
+            );
 
             // Update node result
             await prisma.nodeResult.update({
@@ -317,27 +349,30 @@ export class WorkflowExecutor {
             userMessage?: string;
         };
 
+        const prompt = [
+            data.systemPrompt ? `System: ${data.systemPrompt}` : '',
+            (inputs['system_prompt'] as string) || '',
+            (inputs['user_message'] as string) || data.userMessage || '',
+        ].filter(Boolean).join('\n\n');
+
         const payload = {
+            prompt,
             model: data.model || 'gemini-2.0-flash',
-            systemPrompt: (inputs['system_prompt'] as string) || data.systemPrompt || '',
-            userMessage: (inputs['user_message'] as string) || data.userMessage || '',
             images: (inputs['images'] as string[]) || [],
-            nodeId: node.id,
-            runId,
         };
 
-        if (!payload.userMessage) {
+        if (!prompt) {
             throw new Error('User message is required');
         }
 
         // Trigger the task and wait for result
-        const result = await tasks.triggerAndPoll<typeof llmTask>("llm-execution", payload);
+        const result = await tasks.triggerAndWait<typeof llmTask>("llm-execution", payload);
 
-        if (result.status !== 'COMPLETED' || !result.output) {
+        if (!result.ok) {
             throw new Error('LLM execution failed');
         }
 
-        return result.output.response;
+        return result.output.text;
     }
 
     /**
@@ -355,28 +390,28 @@ export class WorkflowExecutor {
             heightPercent?: number;
         };
 
-        const imageUrl = inputs['image_url'] as string;
-        if (!imageUrl) {
+        const imageData = (inputs['image_url'] as string) || '';
+        if (!imageData) {
             throw new Error('Image URL is required');
         }
 
         const payload = {
-            imageUrl,
-            xPercent: (inputs['x_percent'] as number) ?? data.xPercent ?? 0,
-            yPercent: (inputs['y_percent'] as number) ?? data.yPercent ?? 0,
-            widthPercent: (inputs['width_percent'] as number) ?? data.widthPercent ?? 100,
-            heightPercent: (inputs['height_percent'] as number) ?? data.heightPercent ?? 100,
-            nodeId: node.id,
-            runId,
+            imageData,
+            crop: {
+                x: (inputs['x_percent'] as number) ?? data.xPercent ?? 0,
+                y: (inputs['y_percent'] as number) ?? data.yPercent ?? 0,
+                width: (inputs['width_percent'] as number) ?? data.widthPercent ?? 100,
+                height: (inputs['height_percent'] as number) ?? data.heightPercent ?? 100,
+            },
         };
 
-        const result = await tasks.triggerAndPoll<typeof cropImageTask>("crop-image", payload);
+        const result = await tasks.triggerAndWait<typeof cropImageTask>("crop-image", payload);
 
-        if (result.status !== 'COMPLETED' || !result.output) {
+        if (!result.ok) {
             throw new Error('Crop image failed');
         }
 
-        return result.output.croppedUrl;
+        return result.output.imageUrl;
     }
 
     /**
@@ -396,17 +431,19 @@ export class WorkflowExecutor {
 
         const payload = {
             videoUrl,
-            timestamp: (inputs['timestamp'] as string) ?? data.timestamp ?? '0',
-            nodeId: node.id,
-            runId,
+            timestamp: parseFloat((inputs['timestamp'] as string) ?? data.timestamp ?? '0'),
         };
 
-        const result = await tasks.triggerAndPoll<typeof extractFrameTask>("extract-frame", payload);
+        const result = await tasks.triggerAndWait<typeof extractFrameTask>("extract-frame", payload);
 
-        if (result.status !== 'COMPLETED' || !result.output) {
+        // Note: extractFrameTask currently throws since it requires FFmpeg.
+        // When implemented, the output shape should match the task definition.
+        if (!result.ok) {
             throw new Error('Extract frame failed');
         }
 
-        return result.output.frameUrl;
+        // The task currently throws, so this won't be reached until FFmpeg is configured.
+        // Casting to any since the task doesn't define a return type for success yet.
+        return (result.output as any).frameUrl;
     }
 }

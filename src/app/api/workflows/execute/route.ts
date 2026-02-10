@@ -4,7 +4,7 @@ import { z } from 'zod';
 import prisma from '@/lib/db';
 import { topologicalSort, getConnectedInputs } from '@/lib/workflow-engine/validation';
 import { Node, Edge } from '@xyflow/react';
-import { tasks } from '@trigger.dev/sdk/v3';
+import { tasks, runs } from '@trigger.dev/sdk/v3';
 
 const executeWorkflowSchema = z.object({
     workflowId: z.string(),
@@ -264,31 +264,33 @@ async function executeLLMViaTrigger(
         throw new Error('User message is required');
     }
 
-    const payload = {
-        model: (node.data as { model?: string })?.model || 'gemini-2.0-flash',
-        systemPrompt: (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '',
+    const systemPrompt = (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '';
+    const images = (inputs['images'] as string[]) || [];
+
+    // Combine system prompt and user message into a single prompt (matches trigger task schema)
+    const prompt = [
+        systemPrompt ? `System: ${systemPrompt}` : '',
         userMessage,
-        images: (inputs['images'] as string[]) || [],
-        nodeId: node.id,
-        runId,
+    ].filter(Boolean).join('\n\n');
+
+    const payload = {
+        prompt,
+        model: (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct',
+        images,
     };
 
     try {
-        // Add a timeout to avoid hanging when Trigger.dev is not running
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Trigger.dev timeout - falling back to direct execution')), 10000)
-        );
+        // Trigger the task (fire it off to Trigger.dev)
+        const handle = await tasks.trigger('llm-execution', payload);
+        console.log('[Trigger.dev] LLM task triggered, run ID:', handle.id);
 
-        const triggerPromise = tasks.triggerAndPoll('llm-execution', payload, {
-            pollIntervalMs: 1000,
-        });
+        // Poll for result (works from API routes, unlike triggerAndWait)
+        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
 
-        const result = await Promise.race([triggerPromise, timeoutPromise]) as Awaited<typeof triggerPromise>;
-
-        if (result.status === 'COMPLETED') {
-            return result.output?.response;
+        if (completed.status === 'COMPLETED') {
+            return (completed.output as any)?.text || (completed.output as any)?.response || '';
         } else {
-            throw new Error(`LLM task failed with status: ${result.status}`);
+            throw new Error(`LLM task failed with status: ${completed.status}`);
         }
     } catch (error) {
         // Fallback to direct execution if Trigger.dev is unavailable
@@ -318,24 +320,17 @@ async function executeCropImageViaTrigger(
     };
 
     try {
-        // Add a timeout to avoid hanging when Trigger.dev is not running
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Trigger.dev timeout - falling back to direct execution')), 10000)
-        );
+        const handle = await tasks.trigger('crop-image', payload);
+        console.log('[Trigger.dev] Crop task triggered, run ID:', handle.id);
 
-        const triggerPromise = tasks.triggerAndPoll('crop-image', payload, {
-            pollIntervalMs: 1000,
-        });
+        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
 
-        const result = await Promise.race([triggerPromise, timeoutPromise]) as Awaited<typeof triggerPromise>;
-
-        if (result.status === 'COMPLETED') {
-            return result.output?.croppedUrl;
+        if (completed.status === 'COMPLETED') {
+            return (completed.output as any)?.imageUrl || (completed.output as any)?.croppedUrl || '';
         } else {
-            throw new Error(`Crop image task failed with status: ${result.status}`);
+            throw new Error(`Crop image task failed with status: ${completed.status}`);
         }
     } catch (error) {
-        // Fallback to direct execution if Trigger.dev is unavailable
         console.warn('Trigger.dev unavailable, falling back to direct execution:', error);
         return executeCropImage(node, inputs);
     }
@@ -374,24 +369,17 @@ async function executeExtractFrameViaTrigger(
     };
 
     try {
-        // Add a timeout to avoid hanging when Trigger.dev is not running
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Trigger.dev timeout - falling back to direct execution')), 10000)
-        );
+        const handle = await tasks.trigger('extract-frame', payload);
+        console.log('[Trigger.dev] Extract frame task triggered, run ID:', handle.id);
 
-        const triggerPromise = tasks.triggerAndPoll('extract-frame', payload, {
-            pollIntervalMs: 1000,
-        });
+        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
 
-        const result = await Promise.race([triggerPromise, timeoutPromise]) as Awaited<typeof triggerPromise>;
-
-        if (result.status === 'COMPLETED') {
-            return result.output?.frameUrl;
+        if (completed.status === 'COMPLETED') {
+            return (completed.output as any)?.frameUrl || '';
         } else {
-            throw new Error(`Extract frame task failed with status: ${result.status}`);
+            throw new Error(`Extract frame task failed with status: ${completed.status}`);
         }
     } catch (error) {
-        // Fallback to direct execution if Trigger.dev is unavailable
         console.warn('Trigger.dev unavailable, falling back to direct execution:', error);
         return executeExtractFrame(node, inputs);
     }
@@ -402,11 +390,107 @@ async function executeExtractFrameViaTrigger(
 // Used when Trigger.dev is unavailable
 // ============================================
 
-// LLM execution (direct call for now, can be moved to Trigger.dev)
+// LLM execution - supports both Gemini and Groq models
 async function executeLLM(node: Node, inputs: Record<string, unknown>): Promise<string> {
     console.log('[executeLLM] Starting direct LLM execution');
-    console.log('[executeLLM] Inputs:', JSON.stringify(inputs, null, 2));
 
+    const modelId = (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct';
+    console.log('[executeLLM] Using model:', modelId);
+
+    const systemPrompt = (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '';
+    const userMessage = (inputs['user_message'] as string) || (node.data as { userMessage?: string })?.userMessage;
+    if (!userMessage) {
+        throw new Error('User message is required');
+    }
+
+    const images = (inputs['images'] as string[]) || [];
+    console.log('[executeLLM] Images count:', images.length);
+
+    // Route to Groq or Gemini based on model ID prefix
+    if (modelId.startsWith('groq:')) {
+        return executeLLMViaGroq(modelId.replace('groq:', ''), systemPrompt, userMessage, images);
+    } else {
+        return executeLLMViaGemini(modelId, systemPrompt, userMessage, images);
+    }
+}
+
+// Groq LLM execution
+async function executeLLMViaGroq(
+    modelId: string,
+    systemPrompt: string,
+    userMessage: string,
+    images: string[]
+): Promise<string> {
+    const Groq = (await import('groq-sdk')).default;
+
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey) {
+        throw new Error('Groq API key not configured (GROQ_API_KEY)');
+    }
+
+    const groq = new Groq({ apiKey });
+
+    const messages: Array<{ role: 'system' | 'user'; content: string | Array<{ type: string; text?: string; image_url?: { url: string } }> }> = [];
+
+    if (systemPrompt) {
+        messages.push({ role: 'system', content: systemPrompt });
+    }
+
+    // Build user message with optional images
+    if (images.length > 0) {
+        const contentParts: Array<{ type: string; text?: string; image_url?: { url: string } }> = [
+            { type: 'text', text: userMessage },
+        ];
+
+        for (const imageUrl of images) {
+            if (imageUrl.startsWith('blob:')) continue;
+
+            try {
+                let base64Url = imageUrl;
+                // If it's a URL, fetch and convert to base64
+                if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
+                    const response = await fetch(imageUrl);
+                    if (!response.ok) continue;
+                    const buffer = await response.arrayBuffer();
+                    const base64 = Buffer.from(buffer).toString('base64');
+                    const mimeType = response.headers.get('content-type') || 'image/jpeg';
+                    base64Url = `data:${mimeType};base64,${base64}`;
+                }
+                contentParts.push({ type: 'image_url', image_url: { url: base64Url } });
+            } catch (error) {
+                console.warn('[executeLLM] Failed to process image for Groq:', error);
+            }
+        }
+
+        messages.push({ role: 'user', content: contentParts });
+    } else {
+        messages.push({ role: 'user', content: userMessage });
+    }
+
+    console.log('[executeLLM] Calling Groq API with model:', modelId);
+    const startTime = Date.now();
+
+    const completion = await groq.chat.completions.create({
+        model: modelId,
+        messages: messages as any,
+        temperature: 0.7,
+        max_tokens: 4096,
+    });
+
+    const text = completion.choices[0]?.message?.content || '';
+    console.log('[executeLLM] Groq responded in', Date.now() - startTime, 'ms');
+    console.log('[executeLLM] Response length:', text.length, 'chars');
+
+    return text;
+}
+
+// Gemini LLM execution
+async function executeLLMViaGemini(
+    modelId: string,
+    systemPrompt: string,
+    userMessage: string,
+    images: string[]
+): Promise<string> {
     const { GoogleGenerativeAI } = await import('@google/generative-ai');
 
     const apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -415,56 +499,25 @@ async function executeLLM(node: Node, inputs: Record<string, unknown>): Promise<
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const modelId = (node.data as { model?: string })?.model || 'gemini-2.0-flash';
-    console.log('[executeLLM] Using model:', modelId);
-
-    const systemPrompt = (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '';
-    console.log('[executeLLM] System prompt:', systemPrompt.substring(0, 100) + '...');
-
     const model = genAI.getGenerativeModel({
         model: modelId,
         systemInstruction: systemPrompt || undefined,
     });
 
-    const userMessage = (inputs['user_message'] as string) || (node.data as { userMessage?: string })?.userMessage;
-    if (!userMessage) {
-        throw new Error('User message is required');
-    }
-    console.log('[executeLLM] User message:', userMessage.substring(0, 100) + '...');
-
     const parts: Array<{ text: string } | { inlineData: { data: string; mimeType: string } }> = [{ text: userMessage }];
 
-    // Add images if provided
-    const images = (inputs['images'] as string[]) || [];
-    console.log('[executeLLM] Images count:', images.length);
-
     for (const imageUrl of images) {
-        // Skip blob: URLs - they only work in the browser
-        if (imageUrl.startsWith('blob:')) {
-            console.warn('[executeLLM] Skipping blob: URL (browser-only):', imageUrl.substring(0, 50));
-            continue;
-        }
+        if (imageUrl.startsWith('blob:')) continue;
 
         try {
-            console.log('[executeLLM] Fetching image:', imageUrl.substring(0, 80) + '...');
             const response = await fetch(imageUrl);
-            if (!response.ok) {
-                console.warn('[executeLLM] Failed to fetch image, status:', response.status);
-                continue;
-            }
+            if (!response.ok) continue;
             const buffer = await response.arrayBuffer();
             const base64 = Buffer.from(buffer).toString('base64');
             const mimeType = response.headers.get('content-type') || 'image/jpeg';
-            console.log('[executeLLM] Image fetched, size:', buffer.byteLength, 'mimeType:', mimeType);
-
-            parts.push({
-                inlineData: {
-                    data: base64,
-                    mimeType,
-                },
-            });
+            parts.push({ inlineData: { data: base64, mimeType } });
         } catch (error) {
-            console.warn('[executeLLM] Failed to fetch image:', imageUrl, error);
+            console.warn('[executeLLM] Failed to fetch image:', error);
         }
     }
 
@@ -472,8 +525,7 @@ async function executeLLM(node: Node, inputs: Record<string, unknown>): Promise<
     const startTime = Date.now();
 
     const result = await model.generateContent(parts);
-    const response = result.response;
-    const text = response.text();
+    const text = result.response.text();
 
     console.log('[executeLLM] Gemini responded in', Date.now() - startTime, 'ms');
     console.log('[executeLLM] Response length:', text.length, 'chars');

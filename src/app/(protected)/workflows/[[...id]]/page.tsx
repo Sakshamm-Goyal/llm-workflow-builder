@@ -3,20 +3,20 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { WorkflowCanvas } from '@/components/workflow';
+import { WorkflowHeader } from '@/components/workflow/WorkflowHeader';
 import IconSidebar from '@/components/workflow/Sidebar/IconSidebar';
 import NodeSidebar from '@/components/workflow/Sidebar/NodeSidebar';
-import { HistorySidebar } from '@/components/workflow/HistorySidebar';
 import PropertiesSidebar from '@/components/workflow/Sidebar/PropertiesSidebar';
 import { useWorkflowStore } from '@/stores/workflow-store';
-import { Sparkles, Share2, ChevronDown, History, MoreHorizontal, Download, Upload } from 'lucide-react';
+import { useUIStore } from '@/stores/ui-store';
+import { ChevronDown } from 'lucide-react';
 
 export default function WorkflowEditorPage() {
     const params = useParams();
     const workflowId = (params?.id as string[] | undefined)?.[0];
     const [isLoaded, setIsLoaded] = useState(false);
     const [activeSection, setActiveSection] = useState<string | null>(null);
-    const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-    const [showMenu, setShowMenu] = useState(false);
+    const { isHistoryOpen, setHistoryOpen } = useUIStore();
 
     const nodes = useWorkflowStore((state) => state.nodes);
     const edges = useWorkflowStore((state) => state.edges);
@@ -181,7 +181,6 @@ export default function WorkflowEditorPage() {
         a.download = `${workflowName.replace(/\s+/g, '-').toLowerCase()}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        setShowMenu(false);
     }, [workflowName, nodes, edges]);
 
     // Handle import
@@ -216,7 +215,6 @@ export default function WorkflowEditorPage() {
             }
         };
         input.click();
-        setShowMenu(false);
     }, [workflowId, setWorkflow, handleSave]);
 
     if (!isLoaded) {
@@ -244,84 +242,12 @@ export default function WorkflowEditorPage() {
 
             {/* Main Content Area */}
             <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-                {/* Top Bar - Only show name input when sidebar is closed */}
-                {!isSidebarOpen && (
-                    <div className="absolute top-4 left-4 z-40">
-                        <input
-                            type="text"
-                            value={localName}
-                            onChange={(e) => setLocalName(e.target.value)}
-                            onKeyDown={handleNameKeyDown}
-                            onBlur={handleNameBlur}
-                            className="bg-[#1C1C1E] border border-[#2C2C2E] text-white text-sm font-medium px-4 py-2 rounded-lg focus:outline-none focus:border-gray-500 w-[160px] transition-colors"
-                            placeholder="untitled"
-                        />
-                    </div>
-                )}
-
-                {/* Top Right Controls */}
-                <div className="absolute top-4 right-4 z-40 flex items-center gap-2">
-                    {/* Credits Badge */}
-                    <div className="flex items-center gap-1.5 px-3 py-2 bg-[#1C1C1E] rounded-lg border border-[#2C2C2E]">
-                        <Sparkles className="w-3.5 h-3.5 text-gray-400" />
-                        <span className="text-xs font-medium text-gray-300">150 credits</span>
-                    </div>
-
-                    {/* History Button */}
-                    <button
-                        onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-lg transition-colors ${isHistoryOpen
-                            ? 'bg-purple-500/20 text-purple-400'
-                            : 'bg-[#1C1C1E] text-gray-400 hover:text-white border border-[#2C2C2E]'
-                            }`}
-                    >
-                        <History className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium">History</span>
-                    </button>
-
-                    {/* Share Button */}
-                    <button className="flex items-center gap-1.5 px-3 py-2 bg-[#E1E476] hover:bg-[#d4d765] text-black rounded-lg transition-colors">
-                        <Share2 className="w-3.5 h-3.5" />
-                        <span className="text-xs font-semibold">Share</span>
-                    </button>
-
-                    {/* More Menu */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowMenu(!showMenu)}
-                            className="p-2 bg-[#1C1C1E] hover:bg-[#2C2C2E] rounded-lg transition-colors border border-[#2C2C2E]"
-                        >
-                            <MoreHorizontal className="w-4 h-4 text-gray-400" />
-                        </button>
-
-                        {showMenu && (
-                            <div className="absolute top-full right-0 mt-2 bg-[#1C1C1E] border border-[#2C2C2E] rounded-lg shadow-xl overflow-hidden min-w-[160px] z-50">
-                                <button
-                                    onClick={handleExport}
-                                    className="w-full px-4 py-2.5 text-left text-white hover:bg-[#2C2C2E] transition-colors text-xs flex items-center gap-2"
-                                >
-                                    <Download className="w-3.5 h-3.5" />
-                                    Export JSON
-                                </button>
-                                <button
-                                    onClick={handleImport}
-                                    className="w-full px-4 py-2.5 text-left text-white hover:bg-[#2C2C2E] transition-colors text-xs flex items-center gap-2"
-                                >
-                                    <Upload className="w-3.5 h-3.5" />
-                                    Import JSON
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Tasks Dropdown - Below Share */}
-                <div className="absolute top-16 right-4 z-40">
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 text-gray-400 hover:text-white hover:bg-[#1C1C1E] rounded-lg transition-colors">
-                        <span className="text-xs font-medium">Tasks</span>
-                        <ChevronDown className="w-3.5 h-3.5" />
-                    </button>
-                </div>
+                {/* Header is now handled by WorkflowHeader component */}
+                <WorkflowHeader
+                    workflowId={workflowId}
+                    onRun={handleRun}
+                    onSave={handleSave}
+                />
 
                 {/* Canvas */}
                 <WorkflowCanvas />
@@ -329,13 +255,6 @@ export default function WorkflowEditorPage() {
 
             {/* Properties Sidebar (Right) */}
             <PropertiesSidebar />
-
-            {/* History Sidebar */}
-            <HistorySidebar
-                workflowId={workflowId}
-                isOpen={isHistoryOpen}
-                onClose={() => setIsHistoryOpen(false)}
-            />
         </div>
     );
 }
