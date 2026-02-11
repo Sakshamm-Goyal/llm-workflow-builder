@@ -61,7 +61,7 @@ export const PRODUCT_MARKETING_KIT: WorkflowTemplate = {
             position: { x: 1312, y: 816 },
             data: {
                 label: 'Generate Product Description',
-                model: 'gemini-2.0-flash',
+                model: 'groq:meta-llama/llama-4-scout-17b-16e-instruct',
                 status: 'idle',
             } as WorkflowNodeData,
         },
@@ -126,7 +126,7 @@ export const PRODUCT_MARKETING_KIT: WorkflowTemplate = {
             position: { x: 2176, y: 1632 },
             data: {
                 label: 'Generate Marketing Post',
-                model: 'gemini-2.0-flash',
+                model: 'groq:meta-llama/llama-4-scout-17b-16e-instruct',
                 status: 'idle',
             } as WorkflowNodeData,
         },
