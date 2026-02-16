@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🌌 Galaxy.ai — Artistic Intelligence
+# 🌌 Weavy-Clone — Artistic Intelligence
 
 ### *Turn your creative vision into scalable workflows.*
 
@@ -9,10 +9,11 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript)](https://typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-4-06B6D4?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
 [![Prisma](https://img.shields.io/badge/Prisma-ORM-2D3748?style=for-the-badge&logo=prisma)](https://prisma.io/)
+[![Trigger.dev](https://img.shields.io/badge/Trigger.dev-v3-black?style=for-the-badge&logo=triggerdotdev)](https://trigger.dev/)
 
 ---
 
-**Galaxy.ai** is a node-based AI workflow platform that lets creators, designers, and developers visually compose powerful AI pipelines — connecting models like **Stable Diffusion**, **FLUX Pro**, **MiniMax Video**, and **Groq LLMs** — all within a stunning, drag-and-drop canvas.
+**Weavy-Clone** is a node-based AI workflow platform that lets creators, designers, and developers visually compose powerful AI pipelines — connecting models like **Gemini**, **Llama**, **Qwen**, and **FFmpeg** processing — all within a stunning, drag-and-drop canvas.
 
 [Get Started](#-getting-started) · [Features](#-features) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack)
 
@@ -22,279 +23,263 @@
 
 ## ✨ Features
 
-### 🎨 Visual Workflow Editor
-- **Drag-and-drop canvas** powered by [React Flow](https://reactflow.dev/) — build AI pipelines visually
-- **6 specialized node types** for different creative tasks
-- **Smart edge connections** with type-aware connectors and color-coded data flows
-- **Floating toolbar** with selection, pan, and zoom tools
-- **Undo/Redo history** with a dedicated History Sidebar panel
-- **Auto-save** workflows to the cloud
+### � Core Capabilities
+- **🎨 Node-Based Editor**: Drag-and-drop visual workflow builder with infinite canvas, powered by React Flow.
+- **🤖 LLM Integration**: Execute complex prompts with **Google Gemini**, **Groq (Llama, Qwen)**, and more.
+- **🖼️ Image Processing**: Smart cropping and optimization pipelines.
+- **🎬 Video Analysis**: Extract frames and process video content via FFmpeg.
+- **🔗 Visual Pipelines**: Connect nodes to build complex AI workflows with input chaining.
+- **⚡ Real-Time Execution**: See nodes light up and pulse as they process data in real-time.
 
-### 🧠 AI Node Types
+### �️ Production Features
+- **✅ React Flow Integration**: Industry-standard node editor with smooth pan/zoom and mini-map.
+- **✅ Trigger.dev Background Tasks**: serveless, long-running processes for reliable AI execution.
+- **✅ Clerk Authentication**: Secure, seamless user management and route protection.
+- **✅ PostgreSQL Storage**: Persistent workflow saving, history tracking, and user data via Prisma.
+- **✅ Responsive Design**: Fully responsive UI working on desktop, tablets, and mobile.
+- **✅ Dark Theme**: Beautiful, modern dark UI designed for focus and creativity.
 
-| Node | Description |
-|------|-------------|
-| 📤 **Upload Image** | Drag & drop image uploads with preview and metadata |
-| 🎬 **Upload Video** | Video file ingestion with frame extraction support |
-| ✂️ **Crop Image** | Interactive image cropping with aspect ratio controls |
-| 🖼️ **Extract Frame** | Pull specific frames from uploaded videos |
-| 🤖 **LLM** | Multi-model text generation (Groq, Google Generative AI) |
-| 📝 **Text** | Manual text input and prompt composition |
+---
 
-### 🚀 Workflow Execution Engine
-- **Background task processing** via [Trigger.dev](https://trigger.dev/) — no timeouts, no limits
-- **Pipeline orchestration** — nodes execute in dependency order
-- **Real-time progress tracking** with live status updates
-- **Persistent storage** — all workflows and results saved via Prisma + PostgreSQL
-
-### 🏠 Premium Landing Page
-- **Glassmorphism UI** with gradient containers and backdrop blur
-- **Interactive flow diagram** — draggable nodes showcase the platform's capabilities
-- **Custom DM Sans typography** loaded locally for pixel-perfect rendering
-- **Smooth animations** powered by Framer Motion
-- **Responsive design** optimized for all screen sizes
-
-### 🔐 Authentication & Security
-- **Clerk** integration for seamless sign-up/sign-in flows
-- **Protected routes** with middleware-level auth guards
-- **Per-user workflow isolation** — your data stays yours
+## 📋 Table of Contents
+- [Architecture](#-architecture)
+- [Prerequisites](#-prerequisites)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [Node Types](#-node-types)
+- [Configuration](#-configuration)
+- [API Documentation](#-api-documentation)
+- [Troubleshooting](#-troubleshooting)
+- [Project Structure](#-project-structure)
+- [Deployment](#-deployment)
+- [Contributing](#-contributing)
 
 ---
 
 ## 🏗️ Architecture
 
-```
-src/
-├── app/                          # Next.js App Router
-│   ├── (auth)/                   # Auth pages (sign-in, sign-up)
-│   ├── (protected)/              # Authenticated routes
-│   │   ├── dashboard/            # User dashboard
-│   │   └── workflows/            # Workflow editor page
-│   ├── api/                      # REST API routes
-│   │   ├── workflows/            # CRUD + execute endpoints
-│   │   ├── upload/               # File upload handling
-│   │   └── process/              # AI processing pipeline
-│   ├── layout.tsx                # Root layout + font config
-│   └── page.tsx                  # Landing page
-│
-├── components/
-│   ├── landing/                  # Landing page components
-│   │   ├── LandingHeader.tsx     # Fixed header + announcement bar
-│   │   ├── LandingHero.tsx       # Hero section with typography
-│   │   └── FlowVisual.tsx        # Interactive node diagram
-│   ├── nodes/                    # Custom React Flow nodes
-│   │   ├── UploadImageNode.tsx
-│   │   ├── UploadVideoNode.tsx
-│   │   ├── CropImageNode.tsx
-│   │   ├── ExtractFrameNode.tsx
-│   │   ├── LLMNode.tsx
-│   │   └── TextNode.tsx
-│   ├── workflow/                 # Workflow editor UI
-│   │   ├── WorkflowCanvas.tsx    # Main canvas wrapper
-│   │   ├── WorkflowHeader.tsx    # Top bar with actions
-│   │   ├── FloatingToolbar.tsx   # Tool selection panel
-│   │   ├── LeftSidebar.tsx       # Node palette
-│   │   ├── HistorySidebar.tsx    # Undo/redo task manager
-│   │   └── LogoMenu.tsx          # Brand menu
-│   ├── edges/                    # Custom edge components
-│   └── ui/                       # Shared UI primitives
-│
-├── stores/                       # Zustand state management
-│   ├── workflow-store.ts         # Core workflow state (18KB)
-│   ├── canvas-tool-store.ts      # Tool selection state
-│   └── ui-store.ts               # UI panel visibility
-│
-├── lib/                          # Utilities & services
-│   ├── workflow-engine/          # Execution pipeline
-│   ├── validation/               # Zod schemas
-│   ├── db.ts                     # Prisma client singleton
-│   ├── sample-workflows.ts       # Starter templates
-│   └── connector-colors.ts       # Edge color system
-│
-├── trigger/                      # Trigger.dev background tasks
-│   └── index.ts                  # Task definitions
-│
-└── types/                        # TypeScript type definitions
+Galaxy.ai follows a modern, scalable architecture:
+
+### The Three Pillars
+| Layer | Name | Technology | Responsibility |
+|-------|------|------------|----------------|
+| **UI** | The Canvas | React + React Flow | Visual node editor, state management (Zustand) |
+| **Logic** | The Orchestrator | Next.js API | Graph interpretation, CRUD operations, Authentication |
+| **Compute** | The Engine | Trigger.dev | Long-running tasks (LLM calls, FFmpeg processing) |
+
+### Component Overview
+| Service | Port | Tech Stack | Key Dependencies |
+|---------|------|------------|------------------|
+| **Frontend** | 3000 | Next.js, React | @xyflow/react, Tailwind CSS, Framer Motion |
+| **Database** | 5432 | PostgreSQL | Prisma ORM |
+| **Task Queue** | - | Trigger.dev | @trigger.dev/sdk, FFmpeg, Gemini SDK |
+
+### Architecture Diagram
+```mermaid
+graph TD
+    User[User] -->|Interacts| Client[Next.js Client]
+    Client -->|Auth| Clerk[Clerk Auth]
+    Client -->|API Calls| Server[Next.js API Routes]
+    Server -->|Persist| DB[(PostgreSQL)]
+    Server -->|Queue Task| Trigger[Trigger.dev Cloud]
+    Trigger -->|Execute| Worker[Background Worker]
+    Worker -->|Call| Gemini[Gemini API]
+    Worker -->|Call| Groq[Groq API]
+    Worker -->|Process| Transloadit[Transloadit/FFmpeg]
+    Worker -->|Update| DB
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 📦 Prerequisites
 
-<table>
-<tr>
-<td align="center"><strong>Category</strong></td>
-<td align="center"><strong>Technology</strong></td>
-</tr>
-<tr>
-<td>Framework</td>
-<td>Next.js 16 (App Router)</td>
-</tr>
-<tr>
-<td>Language</td>
-<td>TypeScript 5</td>
-</tr>
-<tr>
-<td>UI Library</td>
-<td>React 19</td>
-</tr>
-<tr>
-<td>Styling</td>
-<td>Tailwind CSS 4</td>
-</tr>
-<tr>
-<td>Node Editor</td>
-<td>@xyflow/react (React Flow)</td>
-</tr>
-<tr>
-<td>Animations</td>
-<td>Framer Motion</td>
-</tr>
-<tr>
-<td>State Management</td>
-<td>Zustand</td>
-</tr>
-<tr>
-<td>Authentication</td>
-<td>Clerk</td>
-</tr>
-<tr>
-<td>Database</td>
-<td>PostgreSQL + Prisma ORM</td>
-</tr>
-<tr>
-<td>Background Jobs</td>
-<td>Trigger.dev v4</td>
-</tr>
-<tr>
-<td>AI Models</td>
-<td>Groq SDK, Google Generative AI</td>
-</tr>
-<tr>
-<td>Validation</td>
-<td>Zod</td>
-</tr>
-<tr>
-<td>Icons</td>
-<td>Lucide React</td>
-</tr>
-<tr>
-<td>Drag & Drop</td>
-<td>React DnD, React Dropzone</td>
-</tr>
-<tr>
-<td>Toast Notifications</td>
-<td>Sonner</td>
-</tr>
-</table>
+### Required Software
+- **Node.js 18+**
+  ```bash
+  node --version  # Should be 18.x or higher
+  ```
+- **PostgreSQL 14+** (Local or Cloud like Supabase/Neon)
+- **Git**
+
+### API Keys
+1. **[Clerk](https://clerk.com)**: For authentication.
+2. **[Trigger.dev](https://trigger.dev)**: For background task execution.
+3. **[Google AI Studio](https://aistudio.google.com/)**: For Gemini models.
+4. **[Groq](https://console.groq.com)**: For high-speed LLM inference.
+5. **[Transloadit](https://transloadit.com)**: For file upload handling.
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Installation
 
-### Prerequisites
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/ShreyasUrade1123/Weavy-Clone-Version1.git
+   cd Weavy-Clone-Version1
+   ```
 
-- **Node.js** ≥ 18.x
-- **npm** or **yarn**
-- **PostgreSQL** database
-- API keys for: [Clerk](https://clerk.com), [Groq](https://console.groq.com), [Google AI](https://ai.google.dev), [Trigger.dev](https://trigger.dev)
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-### Installation
+3. **Database Setup**
+   Ensure your `DATABASE_URL` is set in `.env` (see Configuration), then run:
+   ```bash
+   npx prisma generate
+   npx prisma db push
+   ```
 
+4. **Configure Environment**
+   Duplicate `.env.example` to `.env` and fill in your keys.
+
+---
+
+## ⚡ Quick Start
+
+Start all services to get the application running locally.
+
+**Terminal 1 - Dev Server** (Frontend + API):
 ```bash
-# Clone the repository
-git clone https://github.com/ShreyasUrade1123/Weavy-Clone-Version1.git
-cd Weavy-Clone-Version1
-
-# Install dependencies
-npm install
-
-# Set up environment variables
-cp .env.example .env
-```
-
-### Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-# Database
-DATABASE_URL="postgresql://..."
-
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
-CLERK_SECRET_KEY=sk_...
-NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
-NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
-
-# AI APIs
-GROQ_API_KEY=gsk_...
-GOOGLE_GENERATIVE_AI_API_KEY=...
-
-# Trigger.dev
-TRIGGER_SECRET_KEY=tr_dev_...
-```
-
-### Run the Development Server
-
-```bash
-# Generate Prisma client
-npx prisma generate
-
-# Push database schema
-npx prisma db push
-
-# Start the dev server
 npm run dev
-
-# In a separate terminal, start Trigger.dev
-npx trigger.dev@latest dev
+# ✅ App running on http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+**Terminal 2 - Trigger.dev Agent** (Background Worker):
+```bash
+npx trigger.dev@latest dev
+# ✅ Connected to Trigger.dev cloud, listening for tasks
+```
+
+Access the app at [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 📸 Screenshots
+## 🧩 Node Types
 
-> *Coming soon — screenshots of the landing page, workflow editor, and node connections in action.*
+Galaxy.ai provides a library of specialized nodes to build your workflows:
+
+### Input Nodes
+| Node | Description | Output |
+|------|-------------|--------|
+| **Text** | Manual text input for prompts and system instructions | Text string |
+| **Upload Image** | Drag & drop image upload (via Transloadit) | Image URL |
+| **Upload Video** | Video file upload support | Video URL |
+
+### Processing Nodes
+| Node | Description | Inputs → Output |
+|------|-------------|-----------------|
+| **LLM** | Run prompts against models like Gemini 1.5 or Llama 3 | System Prompt + User Message + Images → Text |
+| **Crop Image** | Smart cropping using FFmpeg | Image + Dimensions → Cropped Image URL |
+| **Extract Frame** | Extract a specific frame from a video | Video URL + Timestamp → Image URL |
 
 ---
 
-## 🗺️ Roadmap
+## ⚙️ Configuration
 
-- [ ] 🖼️ Image generation nodes (Stable Diffusion, FLUX Pro)
-- [ ] 🎥 Video generation nodes (MiniMax Video)
-- [ ] 🧊 3D model nodes (Rodin 2.0)
-- [ ] 📊 Workflow analytics dashboard
-- [ ] 🤝 Team collaboration & shared workflows
-- [ ] 🔌 Plugin system for custom nodes
-- [ ] 📱 Mobile-responsive workflow editor
+Create a `.env` file in the root directory with the following variables:
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | ✅ |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Clerk public key | ✅ |
+| `CLERK_SECRET_KEY` | Clerk secret key | ✅ |
+| `TRIGGER_SECRET_KEY` | Trigger.dev secret key | ✅ |
+| `NEXT_PUBLIC_TRIGGER_PUBLIC_API_KEY` | Trigger.dev public key | ✅ |
+| `TRIGGER_PROJECT_ID` | Trigger.dev project ID | ✅ |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Google Gemini API key | ✅ |
+| `GROQ_API_KEY` | Groq API key | ✅ |
+| `NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY` | Transloadit public key | ✅ |
+| `TRANSLOADIT_AUTH_SECRET` | Transloadit secret | ✅ |
+| `NEXT_PUBLIC_APP_URL` | Base URL of the app (e.g., http://localhost:3000) | ✅ |
+
+---
+
+## 📡 API Documentation
+
+### Workflows
+- **`GET /api/workflows`**: List all workflows for the current user.
+- **`POST /api/workflows`**: Create a new workflow.
+- **`GET /api/workflows/:id`**: Get full workflow details.
+- **`PUT /api/workflows/:id`**: Update workflow nodes/edges.
+- **`DELETE /api/workflows/:id`**: Delete a workflow.
+
+### Processing
+- **`POST /api/workflows/execute`**: Trigger a workflow run (delegates to Trigger.dev).
+- **`POST /api/upload/params`**: Generate signed parameters for secure client-side file uploads to Transloadit.
+
+---
+
+## 🔧 Troubleshooting
+
+**Trigger.dev tasks not running?**
+- Ensure `npx trigger.dev@latest dev` is running in a separate terminal.
+- Check that your `TRIGGER_SECRET_KEY` is correct in `.env`.
+
+**Database errors?**
+- Verify `DATABASE_URL` is reachable.
+- Run `npx prisma db push` to ensure schema is synced.
+
+**File uploads failing?**
+- Check usage limits on your Transloadit account.
+- Verify `NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY` and `TRANSLOADIT_AUTH_SECRET`.
+
+---
+
+## � Project Structure
+
+```bash
+src/
+├── app/                  # Next.js App Router (Pages & API)
+│   ├── (auth)/           # Authentication routes
+│   ├── (protected)/      # Dashboard & Editor routes
+│   └── api/              # API Endpoints
+├── components/           # React Components
+│   ├── landing/          # Landing page UI
+│   ├── nodes/            # Custom React Flow Nodes
+│   ├── workflow/         # Editor Components (Canvas, Sidebar)
+│   └── ui/               # Shared UI (Buttons, Inputs, etc.)
+├── lib/                  # Utilities (DB, Validation)
+├── stores/               # Zustand State Stores
+├── trigger/              # Trigger.dev Task Definitions
+└── types/                # TypeScript Types
+```
+
+---
+
+## 🚀 Deployment
+
+### Frontend (Vercel)
+1. Push your code to GitHub.
+2. Import the project into Vercel.
+3. Add all environment variables from `.env`.
+4. Deploy!
+
+### Background Workers (Trigger.dev)
+1. Create a project on [Trigger.dev](https://trigger.dev).
+2. Connect your GitHub repo.
+3. Trigger.dev will automatically detect and deploy your tasks.
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Contributions are welcome!
+1. Fork the repository.
+2. Create a feature branch: `git checkout -b feature/amazing-feature`.
+3. Commit changes: `git commit -m 'Add amazing feature'`.
+4. Push to branch: `git push origin feature/amazing-feature`.
+5. Open a Pull Request.
 
 ---
 
 ## 📄 License
-
-This project is for educational and portfolio purposes.
+This project is licensed under the **ISC License**.
 
 ---
 
 <div align="center">
 
 **Built with ❤️ by [Shreyas Urade](https://github.com/ShreyasUrade1123)**
-
-*Galaxy.ai — Where creativity meets artificial intelligence.*
 
 </div>
