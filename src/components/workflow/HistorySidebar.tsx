@@ -57,11 +57,14 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
             return;
         }
 
-        const fetchRuns = async () => {
+        const fetchRuns = async (isPolling = false) => {
             // Only show loading on initial fetch if we have no runs
-            if (runs.length === 0) setIsLoading(true);
+            // and we are not polling
+            if (!isPolling && runsRef.current.length === 0) setIsLoading(true);
             try {
-                const response = await fetch(`/api/workflows/${workflowId}/runs`);
+                const response = await fetch(`/api/workflows/${workflowId}/runs?t=${Date.now()}`, {
+                    cache: 'no-store'
+                });
                 if (response.ok) {
                     const data = await response.json();
                     setRuns(data.runs || []);
@@ -69,7 +72,7 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
             } catch (error) {
                 console.error('Failed to fetch runs:', error);
             } finally {
-                setIsLoading(false);
+                if (!isPolling) setIsLoading(false);
             }
         };
 
@@ -78,7 +81,7 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
         const interval = setInterval(() => {
             // Poll if explicitly executing OR if we have running tasks in the list
             if (isExecuting || runsRef.current.some(r => r.status === 'RUNNING')) {
-                fetchRuns();
+                fetchRuns(true);
             }
         }, 2000); // Poll more frequently (2s) when running
 
