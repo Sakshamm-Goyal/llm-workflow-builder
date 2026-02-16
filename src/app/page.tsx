@@ -2,7 +2,6 @@ import { auth } from "@clerk/nextjs/server"
 import { redirect } from "next/navigation"
 import { LandingHeader } from "@/components/landing/LandingHeader"
 import { LandingHero } from "@/components/landing/LandingHero"
-import { FlowVisual } from "@/components/landing/FlowVisual"
 
 export default async function HomePage() {
   console.log("HomePage rendering");
@@ -17,7 +16,6 @@ export default async function HomePage() {
       <LandingHeader />
       <main className="relative pt-20">
         <LandingHero />
-        <FlowVisual />
       </main>
     </div>
   )

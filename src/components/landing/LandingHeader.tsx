@@ -1,41 +1,60 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
+import { X } from 'lucide-react';
 
 export function LandingHeader() {
-    return (
-        <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 bg-[#EAEAEA]/80 backdrop-blur-sm">
-            <div className="max-w-[1920px] mx-auto flex items-center justify-between">
-                {/* Left: Logo & Branding */}
-                <div className="flex items-center gap-4">
-                    <div className="w-8 h-8 bg-black flex items-center justify-center">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 4H20V20H4V4Z" stroke="white" strokeWidth="2" />
-                            <path d="M8 8V16M12 8V16M16 8V16" stroke="white" strokeWidth="2" />
-                        </svg>
-                    </div>
-                    <div className="h-8 w-[1px] bg-black/20 mx-2"></div>
-                    <div className="flex flex-col leading-none">
-                        <span className="font-bold text-xs tracking-wider text-black">WEAVY</span>
-                        <span className="font-medium text-[10px] tracking-wide text-black/60">ARTISTIC INTELLIGENCE</span>
-                    </div>
-                </div>
+    const [isAnnounceVisible, setIsAnnounceVisible] = useState(true);
 
-                {/* Right: Navigation */}
-                <div className="flex items-center gap-8">
-                    <nav className="hidden md:flex items-center gap-8 text-xs font-medium tracking-wide text-black/80">
-                        <Link href="#collective" className="hover:text-black transition-colors">COLLECTIVE</Link>
-                        <Link href="#enterprise" className="hover:text-black transition-colors">ENTERPRISE</Link>
-                        <Link href="#pricing" className="hover:text-black transition-colors">PRICING</Link>
-                        <Link href="#demo" className="hover:text-black transition-colors">REQUEST A DEMO</Link>
-                        <Link href="/sign-in" className="hover:text-black transition-colors">SIGN IN</Link>
-                    </nav>
-                    <Link
-                        href="/sign-up"
-                        className="bg-[#EBFF00] hover:bg-[#D4E600] text-black text-sm font-medium px-6 py-3 transition-colors rounded-sm"
+    return (
+        <header className="fixed top-0 left-0 right-0 z-50 font-dm-regular flex flex-col">
+            {/* Top Announcement Bar */}
+            {isAnnounceVisible && (
+                <div className="bg-black text-white text-[12px] h-13 flex items-center justify-center relative px-4">
+                    <span className="font-medium tracking-wide">Weavy is now a part of Figma</span>
+                    <button
+                        onClick={() => setIsAnnounceVisible(false)}
+                        className="absolute right-4 p-1 opacity-70 hover:opacity-100 transition-opacity"
                     >
-                        Start Now
-                    </Link>
+                        <X size={14} />
+                    </button>
+                </div>
+            )}
+
+            {/* Main Header Content */}
+            <div className="bg-[#EAEAEA]/80 backdrop-blur-sm pt-0 pb-0 transition-all">
+                <div className="w-full flex items-start justify-between">
+                    {/* Left: Branding */}
+                    <div className="flex items-start">
+                        <Image
+                            src="/logo2.svg"
+                            alt="Weavy"
+                            width={140}
+                            height={40}
+                            className="w-auto h-10 object-contain -mt-1 -ml-1"
+                            style={{ filter: 'brightness(0)' }}
+                            priority
+                        />
+                    </div>
+
+                    {/* Right: Navigation */}
+                    <div className="flex items-start gap-4 pr-0">
+                        <nav className="hidden md:flex items-center gap-2 font-semibold text-[12px] tracking-normal text-black/80 mt-1">
+                            <Link href="#collective" className="px-3 py-2 rounded-md hover:bg-black hover:text-white transition-all uppercase">COLLECTIVE</Link>
+                            <Link href="#enterprise" className="px-3 py-2 rounded-md hover:bg-black hover:text-white transition-all uppercase">ENTERPRISE</Link>
+                            <Link href="#pricing" className="px-3 py-2 rounded-md hover:bg-black hover:text-white transition-all uppercase">PRICING</Link>
+                            <Link href="#demo" className="px-3 py-2 rounded-md hover:bg-black hover:text-white transition-all uppercase">REQUEST A DEMO</Link>
+                            <Link href="/sign-in" className="px-3 py-2 rounded-md hover:bg-black hover:text-white transition-all uppercase">SIGN IN</Link>
+                        </nav>
+                        <Link
+                            href="/sign-up"
+                            className="bg-[#F7FF9F] hover:bg-[#252525] text-black hover:text-white font-normal pl-3 pr-6 pt-8 pb-3 transition-colors rounded-bl-lg text-[30px] leading-none flex justify-start shadow-sm"
+                        >
+                            Start Now
+                        </Link>
+                    </div>
                 </div>
             </div>
         </header>

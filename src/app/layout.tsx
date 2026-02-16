@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, DM_Sans, DM_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 
@@ -11,7 +12,12 @@ const inter = Inter({
 const dmSans = DM_Sans({
   variable: "--font-dm-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "700"],
+});
+
+const dmRegular = localFont({
+  src: "../../public/DMSans-Regular.ttf",
+  variable: "--font-dm-regular",
+  weight: "400",
 });
 
 const dmMono = DM_Mono({
@@ -34,7 +40,7 @@ export default function RootLayout({
     <ClerkProvider>
       <html lang="en" className="dark" suppressHydrationWarning>
         <body
-          className={`${inter.variable} ${dmSans.variable} ${dmMono.variable} font-sans antialiased bg-gray-950 text-white`}
+          className={`${inter.variable} ${dmSans.variable} ${dmRegular.variable} ${dmMono.variable} font-sans antialiased bg-gray-950 text-white`}
           suppressHydrationWarning
         >
           {children}

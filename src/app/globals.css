@@ -11,6 +11,10 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
 }
 
+.font-dm-regular {
+  font-family: var(--font-dm-regular), sans-serif;
+}
+
 /* React Flow custom styles */
 .react-flow__node {
   border-radius: 0.75rem;
