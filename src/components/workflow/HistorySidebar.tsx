@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useWorkflowStore } from '@/stores/workflow-store';
 import {
     History,
     ChevronDown,
@@ -43,6 +44,8 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
     const [runs, setRuns] = useState<WorkflowRunDisplay[]>([]);
     const [expandedRuns, setExpandedRuns] = useState<Set<string>>(new Set());
     const [isLoading, setIsLoading] = useState(false);
+    const isExecuting = useWorkflowStore((state) => state.isExecuting);
+
 
     // Use ref to access runs without re-triggering effect
     const runsRef = useRef<WorkflowRunDisplay[]>([]);
@@ -55,7 +58,8 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
         }
 
         const fetchRuns = async () => {
-            setIsLoading(true);
+            // Only show loading on initial fetch if we have no runs
+            if (runs.length === 0) setIsLoading(true);
             try {
                 const response = await fetch(`/api/workflows/${workflowId}/runs`);
                 if (response.ok) {
@@ -72,14 +76,14 @@ export function HistorySidebar({ workflowId, isOpen, onClose }: HistorySidebarPr
         fetchRuns();
 
         const interval = setInterval(() => {
-            // Use ref to check status without triggering re-renders
-            if (runsRef.current.some(r => r.status === 'RUNNING')) {
+            // Poll if explicitly executing OR if we have running tasks in the list
+            if (isExecuting || runsRef.current.some(r => r.status === 'RUNNING')) {
                 fetchRuns();
             }
-        }, 5000);
+        }, 2000); // Poll more frequently (2s) when running
 
         return () => clearInterval(interval);
-    }, [workflowId]); // Only depend on workflowId
+    }, [workflowId, isExecuting]); // Re-setup interval when execution state changes
 
     const toggleRun = (runId: string) => {
         setExpandedRuns(prev => {

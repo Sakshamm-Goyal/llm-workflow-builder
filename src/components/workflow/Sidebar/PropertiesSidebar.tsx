@@ -44,6 +44,7 @@ export default function PropertiesSidebar() {
     const setNodes = useWorkflowStore((state) => state.setNodes);
     const setEdges = useWorkflowStore((state) => state.setEdges);
     const saveWorkflow = useWorkflowStore((state) => state.saveWorkflow);
+    const setExecuting = useWorkflowStore((state) => state.setExecuting);
     const { toggleHistory, isHistoryOpen } = useUIStore();
 
     // Internal state for run configuration
@@ -150,6 +151,7 @@ export default function PropertiesSidebar() {
         if (!selectedNode) return;
         const node = selectedNode;
         setNodeStatus(node.id, 'running');
+        setExecuting(true); // Notify other components that a run is starting
 
         try {
             for (let i = 0; i < runCount; i++) {
@@ -183,6 +185,8 @@ export default function PropertiesSidebar() {
         } catch (error) {
             console.error('Run failed:', error);
             setNodeStatus(node.id, 'error', undefined, 'Execution failed');
+        } finally {
+            setExecuting(false); // Notify other components that a run has finished
         }
     };
 
