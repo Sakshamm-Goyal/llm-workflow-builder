@@ -14,13 +14,11 @@ const executeWorkflowSchema = z.object({
     nodeIds: z.array(z.string()).optional(),
 });
 
-// Auto-detect Vercel environment and skip Trigger.dev
-// Trigger.dev's runs.poll() blocks the serverless function and causes 504 timeouts
-// Direct API calls (Groq, Gemini, Transloadit) work reliably within Vercel's limits
+// Only skip Trigger.dev if explicitly disabled via env var
+// When using Trigger.dev in production, tasks must be deployed via:
+//   npx trigger.dev@latest deploy --env production
 function shouldSkipTriggerDev(): boolean {
-    if (process.env.SKIP_TRIGGER_DEV === 'true') return true;
-    if (process.env.VERCEL === '1' || process.env.VERCEL) return true;
-    return false;
+    return process.env.SKIP_TRIGGER_DEV === 'true';
 }
 
 export async function POST(request: NextRequest) {
@@ -288,6 +286,18 @@ export async function POST(request: NextRequest) {
 // These use tasks.triggerAndPoll to run via Trigger.dev
 // ============================================
 
+// Helper: Poll with a timeout to avoid Vercel serverless function timeouts
+// Defaults to 120s which is safely under Vercel's 300s limit
+async function pollWithTimeout(runId: string, timeoutMs: number = 120000) {
+    const result = await Promise.race([
+        runs.poll(runId, { pollIntervalMs: 1000 }),
+        new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error(`Trigger.dev task timed out after ${timeoutMs / 1000}s`)), timeoutMs)
+        ),
+    ]);
+    return result;
+}
+
 async function executeLLMViaTrigger(
     node: Node,
     inputs: Record<string, unknown>,
@@ -318,8 +328,8 @@ async function executeLLMViaTrigger(
         const handle = await tasks.trigger('llm-execution', payload);
         console.log('[Trigger.dev] LLM task triggered, run ID:', handle.id);
 
-        // Poll for result (works from API routes, unlike triggerAndWait)
-        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
+        // Poll for result with timeout to prevent Vercel function timeout
+        const completed = await pollWithTimeout(handle.id);
 
         if (completed.status === 'COMPLETED') {
             return (completed.output as any)?.text || (completed.output as any)?.response || '';
@@ -384,7 +394,7 @@ async function executeCropImageViaTrigger(
         const handle = await tasks.trigger('crop-image', payload);
         console.log('[Trigger.dev] Crop task triggered, run ID:', handle.id);
 
-        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
+        const completed = await pollWithTimeout(handle.id);
 
         if (completed.status === 'COMPLETED') {
             return (completed.output as any)?.imageUrl || '';
@@ -436,7 +446,7 @@ async function executeExtractFrameViaTrigger(
         const handle = await tasks.trigger('extract-frame', payload);
         console.log('[Trigger.dev] Extract frame task triggered, run ID:', handle.id);
 
-        const completed = await runs.poll(handle.id, { pollIntervalMs: 500 });
+        const completed = await pollWithTimeout(handle.id);
 
         if (completed.status === 'COMPLETED') {
             return (completed.output as any)?.frameUrl || '';
