@@ -116,9 +116,14 @@ async function loadLocalFileAsBlob(inputUrl: string): Promise<{ file: Blob; file
 }
 
 async function createAssemblyWithUpload(steps: Record<string, unknown>, file: Blob, fileName: string): Promise<TransloaditResult> {
+    const authKey = TRANSLOADIT_AUTH_KEY;
+    if (!authKey) {
+        throw new Error('Missing Transloadit auth key. Set TRANSLOADIT_AUTH_KEY or NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY.');
+    }
+
     const params: TransloaditParams = {
         auth: {
-            key: TRANSLOADIT_AUTH_KEY,
+            key: authKey,
             expires: getExpiryDate(),
         },
         steps,
@@ -238,6 +243,7 @@ export async function POST(request: NextRequest) {
                 { status: 500 }
             );
         }
+        const transloaditAuthKey = TRANSLOADIT_AUTH_KEY;
 
         if (!fileUrl) {
             return NextResponse.json(
@@ -366,7 +372,7 @@ export async function POST(request: NextRequest) {
 
         const params: TransloaditParams = {
             auth: {
-                key: TRANSLOADIT_AUTH_KEY,
+                key: transloaditAuthKey,
                 expires: getExpiryDate(),
             },
             steps,
