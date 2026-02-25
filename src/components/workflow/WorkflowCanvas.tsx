@@ -125,10 +125,16 @@ function WorkflowCanvasInner() {
 
             // Update node statuses based on results
             result.results?.forEach((nodeResult: { nodeId: string; status: string; output?: unknown; error?: string }) => {
+                const status = nodeResult.status === 'SUCCESS' ? 'success' : 'error';
+                const node = nodes.find(n => n.id === nodeResult.nodeId);
+
                 updateNodeData(nodeResult.nodeId, {
-                    status: nodeResult.status === 'SUCCESS' ? 'success' : 'error',
-                    output: nodeResult.output,
-                    error: nodeResult.error,
+                    status,
+                    ...(nodeResult.output !== undefined ? { output: nodeResult.output } : {}),
+                    ...(nodeResult.error !== undefined ? { error: nodeResult.error } : {}),
+                    ...(nodeResult.output !== undefined && node?.type === 'llm'
+                        ? { response: nodeResult.output as string }
+                        : {}),
                 });
             });
 

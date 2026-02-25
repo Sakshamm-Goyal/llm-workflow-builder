@@ -11,6 +11,159 @@ function getExpiryDate(): string {
     return date.toISOString().replace(/\.\d{3}Z$/, '+00:00');
 }
 
+function normalizeImportUrl(inputUrl: string): string {
+    if (!inputUrl) return inputUrl;
+    if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://') || inputUrl.startsWith('data:') || inputUrl.startsWith('blob:')) {
+        return inputUrl;
+    }
+
+    if (inputUrl.startsWith('/')) {
+        const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_APP_ORIGIN ||
+            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+        return `${baseUrl.replace(/\/$/, '')}${inputUrl}`;
+    }
+
+    return inputUrl;
+}
+
+function isLocalImportUrl(inputUrl: string): boolean {
+    if (!inputUrl) return false;
+    if (inputUrl.startsWith('/')) return true;
+
+    try {
+        const parsed = new URL(inputUrl);
+        const host = parsed.hostname.toLowerCase();
+        return (
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === '::1' ||
+            host.endsWith('.localhost')
+        );
+    } catch {
+        return false;
+    }
+}
+
+function getFileNameFromUrl(url: string, contentType?: string | null): string {
+    try {
+        const parsed = new URL(url);
+        const rawName = decodeURIComponent(parsed.pathname.split('/').pop() || '').trim();
+        if (rawName.includes('.')) return rawName;
+    } catch {
+        // no-op
+    }
+
+    if (contentType && contentType.includes('/')) {
+        const ext = contentType.split('/')[1]?.split('+')[0];
+        if (ext) return `media.${ext}`;
+    }
+
+    return 'media';
+}
+
+async function loadUrlAsBlob(url: string): Promise<{ file: Blob; fileName: string }> {
+    const response = await fetch(url, { redirect: 'follow' });
+    if (!response.ok) {
+        throw new Error(`Unable to read local media URL "${url}" (${response.status} ${response.statusText})`);
+    }
+
+    const file = await response.blob();
+    const contentType = file.type || response.headers.get('content-type');
+    const fileName = getFileNameFromUrl(url, contentType);
+
+    return { file, fileName };
+}
+
+async function runTransloaditAssemblyWithUpload(
+    steps: Record<string, unknown>,
+    file: Blob,
+    fileName: string
+): Promise<TransloaditResult> {
+    const authKey = process.env.TRANSLOADIT_AUTH_KEY || process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
+    const authSecret = process.env.TRANSLOADIT_AUTH_SECRET;
+
+    if (!authKey || !authSecret) {
+        throw new Error("Transloadit credentials not configured (TRANSLOADIT_AUTH_KEY or NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY, TRANSLOADIT_AUTH_SECRET)");
+    }
+
+    const params = {
+        auth: { key: authKey, expires: getExpiryDate() },
+        steps,
+    };
+
+    const signature = generateSignature(params, authSecret);
+
+    const formData = new FormData();
+    formData.append('params', JSON.stringify(params));
+    formData.append('signature', signature);
+    formData.append('file', file, fileName);
+
+    const response = await fetch('https://api2.transloadit.com/assemblies', {
+        method: 'POST',
+        body: formData,
+    });
+
+    const assembly = await response.json();
+    if (assembly.error) {
+        throw new Error(`Transloadit error: ${assembly.error} - ${assembly.message}`);
+    }
+
+    let result = assembly;
+    const startTime = Date.now();
+    while (result.ok !== 'ASSEMBLY_COMPLETED' && Date.now() - startTime < 120000) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const pollResponse = await fetch(result.assembly_ssl_url);
+        result = await pollResponse.json();
+        if (result.error) {
+            const stepInfo = result.steps ? ` Steps: ${JSON.stringify(result.steps).slice(0, 1200)}` : '';
+            throw new Error(`Transloadit error: ${result.error} - ${result.message}${stepInfo}`);
+        }
+    }
+
+    if (result.ok !== 'ASSEMBLY_COMPLETED') {
+        throw new Error('Transloadit assembly timed out');
+    }
+
+    return result;
+}
+
+async function assertImportUrlReachable(url: string, label: 'image' | 'video'): Promise<void> {
+    if (!url.startsWith('http://') && !url.startsWith('https://')) return;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            headers: { range: 'bytes=0-0' },
+            redirect: 'follow',
+            signal: controller.signal,
+        });
+        clearTimeout(timeout);
+
+        if (response.status !== 200 && response.status !== 206) {
+            throw new Error(`Status ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (label === 'image' && contentType && !contentType.startsWith('image/')) {
+            throw new Error(`Expected image content-type, got "${contentType}"`);
+        }
+        if (label === 'video' && contentType && !contentType.startsWith('video/') && contentType !== 'application/octet-stream') {
+            throw new Error(`Expected video content-type, got "${contentType}"`);
+        }
+    } catch (error) {
+        clearTimeout(timeout);
+        throw new Error(
+            `Cannot access ${label} import URL "${url}" from Transloadit worker. ` +
+            `Ensure NEXT_PUBLIC_APP_URL is publicly reachable. ${error instanceof Error ? error.message : String(error)}`
+        );
+    }
+}
+
 function generateSignature(params: Record<string, unknown>, secret: string): string {
     const toSign = JSON.stringify(params);
     return `sha384:${crypto.createHmac('sha384', secret).update(toSign).digest('hex')}`;
@@ -21,6 +174,7 @@ interface TransloaditResult {
     assembly_id: string;
     assembly_ssl_url: string;
     results: Record<string, Array<{ ssl_url: string; url: string; name: string }>>;
+    steps?: Record<string, unknown>;
     error?: string;
     message?: string;
 }
@@ -28,11 +182,11 @@ interface TransloaditResult {
 async function runTransloaditAssembly(
     steps: Record<string, unknown>
 ): Promise<TransloaditResult> {
-    const authKey = process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
+    const authKey = process.env.TRANSLOADIT_AUTH_KEY || process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
     const authSecret = process.env.TRANSLOADIT_AUTH_SECRET;
 
     if (!authKey || !authSecret) {
-        throw new Error("Transloadit credentials not configured (NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY, TRANSLOADIT_AUTH_SECRET)");
+        throw new Error("Transloadit credentials not configured (TRANSLOADIT_AUTH_KEY or NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY, TRANSLOADIT_AUTH_SECRET)");
     }
 
     const params = {
@@ -64,7 +218,8 @@ async function runTransloaditAssembly(
         const pollResponse = await fetch(result.assembly_ssl_url);
         result = await pollResponse.json();
         if (result.error) {
-            throw new Error(`Transloadit processing error: ${result.error} - ${result.message}`);
+            const stepInfo = result.steps ? ` Steps: ${JSON.stringify(result.steps).slice(0, 1200)}` : '';
+            throw new Error(`Transloadit processing error: ${result.error} - ${result.message}${stepInfo}`);
         }
     }
 
@@ -86,7 +241,18 @@ export const llmTask = task({
         model?: string;
         images?: string[];
     }) => {
-        const modelId = payload.model || "groq:meta-llama/llama-4-scout-17b-16e-instruct";
+        const requestedModel = payload.model || "groq:meta-llama/llama-4-scout-17b-16e-instruct";
+        const hasGroq = !!process.env.GROQ_API_KEY;
+        const hasGemini = !!(process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY);
+
+        const fallbackModel = "gemini-2.0-flash";
+        const modelId = requestedModel.startsWith("groq:")
+            ? (hasGroq ? requestedModel : hasGemini ? fallbackModel : requestedModel)
+            : requestedModel;
+
+        if (requestedModel.startsWith("groq:") && !hasGroq && hasGemini) {
+            console.log(`[LLM] Falling back from ${requestedModel} to ${fallbackModel} (GROQ_API_KEY missing, Gemini available)`);
+        }
 
         // Route to Groq or Gemini
         if (modelId.startsWith("groq:")) {
@@ -106,7 +272,7 @@ export const llmTask = task({
         } else {
             const { GoogleGenerativeAI } = await import("@google/generative-ai");
             const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY;
-            if (!apiKey) throw new Error("GOOGLE_GENERATIVE_AI_API_KEY not set");
+            if (!apiKey) throw new Error("Google AI key not set (GOOGLE_GENERATIVE_AI_API_KEY or GOOGLE_AI_API_KEY)");
 
             const genAI = new GoogleGenerativeAI(apiKey);
             const model = genAI.getGenerativeModel({ model: modelId });
@@ -142,15 +308,14 @@ export const cropImageTask = task({
         width: number;
         height: number;
     }) => {
-        console.log(`[Crop Image] Processing: ${payload.imageUrl.substring(0, 60)}...`);
+        const imageUrl = normalizeImportUrl(payload.imageUrl);
+        console.log(`[Crop Image] Processing: ${imageUrl.substring(0, 60)}...`);
         console.log(`[Crop Image] Crop params: x=${payload.x}, y=${payload.y}, w=${payload.width}, h=${payload.height}`);
 
-        // If the image is a base64 data URL, we can't use Transloadit's HTTP import
-        // Instead, we'll upload it directly
         let steps: Record<string, unknown>;
 
-        if (payload.imageUrl.startsWith('data:')) {
-            // For base64 images, upload directly
+        if (imageUrl.startsWith('data:')) {
+            // For base64, upload directly
             steps = {
                 ':original': {
                     robot: '/upload/handle',
@@ -169,8 +334,7 @@ export const cropImageTask = task({
                 },
             };
 
-            // For base64, we need to convert to a file and upload
-            const authKey = process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
+            const authKey = process.env.TRANSLOADIT_AUTH_KEY || process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
             const authSecret = process.env.TRANSLOADIT_AUTH_SECRET;
             if (!authKey || !authSecret) {
                 throw new Error("Transloadit credentials not configured");
@@ -183,8 +347,8 @@ export const cropImageTask = task({
             const signature = generateSignature(params, authSecret);
 
             // Convert base64 to Blob
-            const base64Data = payload.imageUrl.split(',')[1];
-            const mimeType = payload.imageUrl.match(/^data:(.+);base64/)?.[1] || 'image/png';
+            const base64Data = imageUrl.split(',')[1];
+            const mimeType = imageUrl.match(/^data:(.+);base64/)?.[1] || 'image/png';
             const byteArray = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
             const blob = new Blob([byteArray], { type: mimeType });
 
@@ -203,15 +367,46 @@ export const cropImageTask = task({
             }
 
             // Poll for completion
-            let result = assembly;
-            const startTime = Date.now();
-            while (result.ok !== 'ASSEMBLY_COMPLETED' && Date.now() - startTime < 120000) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                const pollResponse = await fetch(result.assembly_ssl_url);
-                result = await pollResponse.json();
-                if (result.error) throw new Error(`Transloadit error: ${result.error}`);
+                let result = assembly;
+                const startTime = Date.now();
+                while (result.ok !== 'ASSEMBLY_COMPLETED' && Date.now() - startTime < 120000) {
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const pollResponse = await fetch(result.assembly_ssl_url);
+                    result = await pollResponse.json();
+                    if (result.error) throw new Error(`Transloadit error: ${result.error}`);
+                }
+
+            const resultUrl = result.results.cropped?.[0]?.ssl_url || result.results[':original']?.[0]?.ssl_url;
+            if (!resultUrl) throw new Error('No result from Transloadit crop');
+
+            console.log(`[Crop Image] Success: ${resultUrl.substring(0, 60)}...`);
+            return { imageUrl: resultUrl };
+
+        } else if (isLocalImportUrl(imageUrl)) {
+            if (imageUrl.startsWith('blob:')) {
+                throw new Error('Invalid Image URL: The image url is a local blob (blob:...), which cannot be accessed by the server.');
             }
 
+            const { file, fileName } = await loadUrlAsBlob(imageUrl);
+            steps = {
+                ':original': {
+                    robot: '/upload/handle',
+                },
+                cropped: {
+                    robot: '/image/resize',
+                    use: ':original',
+                    crop: {
+                        x1: payload.x,
+                        y1: payload.y,
+                        x2: payload.x + payload.width,
+                        y2: payload.y + payload.height,
+                    },
+                    resize_strategy: 'crop',
+                    result: true,
+                },
+            };
+
+            const result = await runTransloaditAssemblyWithUpload(steps, file, fileName);
             const resultUrl = result.results.cropped?.[0]?.ssl_url || result.results[':original']?.[0]?.ssl_url;
             if (!resultUrl) throw new Error('No result from Transloadit crop');
 
@@ -220,10 +415,12 @@ export const cropImageTask = task({
 
         } else {
             // For HTTP URLs, use HTTP import
+            await assertImportUrlReachable(imageUrl, 'image');
+
             steps = {
                 imported: {
                     robot: '/http/import',
-                    url: payload.imageUrl,
+                    url: imageUrl,
                 },
                 cropped: {
                     robot: '/image/resize',
@@ -264,14 +461,49 @@ export const extractFrameTask = task({
         console.log(`[Extract Frame] Timestamp: ${payload.timestamp || 0}s, Format: ${payload.format || 'png'}`);
 
         const timestamp = payload.timestamp || 0;
+        const videoUrl = normalizeImportUrl(payload.videoUrl);
 
-        if (payload.videoUrl.startsWith('blob:')) {
+        if (isLocalImportUrl(videoUrl)) {
+            if (videoUrl.startsWith('blob:')) {
+                throw new Error('Invalid Video URL: The video url is a local blob (blob:...), which cannot be accessed by the server. Please ensure the video is fully uploaded before running the workflow.');
+            }
+
+            const { file, fileName } = await loadUrlAsBlob(videoUrl);
+            const steps: Record<string, unknown> = {
+                ':original': {
+                    robot: '/upload/handle',
+                },
+                thumbnail: {
+                    robot: '/video/thumbs',
+                    use: ':original',
+                    offsets: [timestamp],
+                    width: 1920,
+                    height: 1080,
+                    resize_strategy: 'fit',
+                    format: payload.format || 'png',
+                    result: true,
+                },
+            };
+
+            const result = await runTransloaditAssemblyWithUpload(steps, file, fileName);
+            const frameUrl = result.results.thumbnail?.[0]?.ssl_url;
+            if (!frameUrl) {
+                throw new Error('No frame extracted from video');
+            }
+
+            console.log(`[Extract Frame] Success: ${frameUrl.substring(0, 60)}...`);
+            return { frameUrl };
+        }
+
+        await assertImportUrlReachable(videoUrl, 'video');
+
+        if (videoUrl.startsWith('blob:')) {
             throw new Error('Invalid Video URL: The video url is a local blob (blob:...), which cannot be accessed by the server. Please ensure the video is fully uploaded before running the workflow.');
         }
         const steps: Record<string, unknown> = {
             imported: {
                 robot: '/http/import',
-                url: payload.videoUrl,
+                url: videoUrl,
             },
             thumbnail: {
                 robot: '/video/thumbs',

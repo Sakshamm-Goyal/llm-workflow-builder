@@ -14,11 +14,111 @@ const executeWorkflowSchema = z.object({
     nodeIds: z.array(z.string()).optional(),
 });
 
-// Only skip Trigger.dev if explicitly disabled via env var
-// When using Trigger.dev in production, tasks must be deployed via:
-//   npx trigger.dev@latest deploy --env production
+// Set SKIP_TRIGGER_DEV=true to run LLM/crop/frame directly (e.g. when worker isn't running).
+// To use Trigger.dev, set false or leave unset and run the worker: npm run trigger:dev
 function shouldSkipTriggerDev(): boolean {
     return process.env.SKIP_TRIGGER_DEV === 'true';
+}
+
+function normalizePublicUrl(inputUrl: string): string {
+    if (!inputUrl) return inputUrl;
+    if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://') || inputUrl.startsWith('data:') || inputUrl.startsWith('blob:')) {
+        return inputUrl;
+    }
+
+    if (inputUrl.startsWith('/')) {
+        const baseUrl =
+            process.env.NEXT_PUBLIC_APP_URL ||
+            process.env.NEXT_PUBLIC_APP_ORIGIN ||
+            (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+        return `${baseUrl.replace(/\/$/, '')}${inputUrl}`;
+    }
+
+    return inputUrl;
+}
+
+function resolveLLMModel(rawModel?: string): string {
+    const requestedModel = rawModel || 'groq:meta-llama/llama-4-scout-17b-16e-instruct';
+    const hasGroq = !!process.env.GROQ_API_KEY;
+    const hasGemini = !!(
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        process.env.GOOGLE_AI_API_KEY
+    );
+
+    if (!requestedModel.startsWith('groq:')) {
+        return requestedModel;
+    }
+
+    if (hasGroq) return requestedModel;
+    if (hasGemini) return 'gemini-2.0-flash';
+
+    return requestedModel;
+}
+
+function resolveWorkflowHostBase(request: NextRequest): string {
+    const explicitBase =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.NEXT_PUBLIC_APP_ORIGIN;
+
+    if (explicitBase) {
+        return explicitBase.replace(/\/$/, '');
+    }
+
+    const forwardedHost = request.headers.get('x-forwarded-host');
+    const requestHost = request.headers.get('host');
+    const host = forwardedHost || requestHost;
+
+    if (host) {
+        const forwardedProto = request.headers.get('x-forwarded-proto');
+        const isLocalHost =
+            host.startsWith('localhost') ||
+            host.startsWith('127.0.0.1') ||
+            host.startsWith('[::1]') ||
+            host.includes('.localhost');
+
+        const defaultProto = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+        const proto = forwardedProto || (isLocalHost ? 'http' : defaultProto);
+        return `${proto}://${host}`.replace(/\/$/, '');
+    }
+
+    const port = process.env.PORT || '3000';
+    return `http://localhost:${port}`;
+}
+
+function normalizeTaskMediaUrl(inputUrl: string, processApiBaseUrl: string): string {
+    if (!inputUrl) return inputUrl;
+
+    const baseUrl = processApiBaseUrl.replace(/\/$/, '');
+
+    if (inputUrl.startsWith('http://') || inputUrl.startsWith('https://')) {
+        try {
+            const parsed = new URL(inputUrl);
+            const host = parsed.hostname.toLowerCase();
+            const isPrivateIp =
+                /^10\./.test(host) ||
+                /^192\.168\./.test(host) ||
+                /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host);
+            const isLocalHost =
+                host === 'localhost' ||
+                host === '127.0.0.1' ||
+                host === '::1' ||
+                isPrivateIp ||
+                host.endsWith('.localhost');
+
+            if (isLocalHost) {
+                const pathWithQuery = `${parsed.pathname}${parsed.search}${parsed.hash || ''}`;
+                return `${baseUrl}${pathWithQuery}`;
+            }
+        } catch {
+            // fall through to original URL
+        }
+    }
+
+    if (inputUrl.startsWith('/')) {
+        return `${baseUrl}${inputUrl}`;
+    }
+
+    return inputUrl;
 }
 
 export async function POST(request: NextRequest) {
@@ -48,6 +148,7 @@ export async function POST(request: NextRequest) {
         }
 
         const { workflowId, nodes, edges, scope, nodeIds } = validation.data;
+        const processApiBaseUrl = resolveWorkflowHostBase(request);
 
         // Determine which nodes to execute
         let nodesToExecute: Node[] = nodes;
@@ -183,17 +284,17 @@ export async function POST(request: NextRequest) {
 
                         case 'cropImage':
                             if (shouldSkipTriggerDev()) {
-                                output = await executeCropImage(node, inputs);
+                                output = await executeCropImage(node, inputs, processApiBaseUrl);
                             } else {
-                                output = await executeCropImageViaTrigger(node, inputs, run.id);
+                                output = await executeCropImageViaTrigger(node, inputs, processApiBaseUrl);
                             }
                             break;
 
                         case 'extractFrame':
                             if (shouldSkipTriggerDev()) {
-                                output = await executeExtractFrame(node, inputs);
+                                output = await executeExtractFrame(node, inputs, processApiBaseUrl);
                             } else {
-                                output = await executeExtractFrameViaTrigger(node, inputs, run.id);
+                                output = await executeExtractFrameViaTrigger(node, inputs, processApiBaseUrl);
                             }
                             break;
 
@@ -310,6 +411,12 @@ async function executeLLMViaTrigger(
 
     const systemPrompt = (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '';
     const images = (inputs['images'] as string[]) || [];
+    const requestedModel = (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct';
+    const modelId = resolveLLMModel(requestedModel);
+
+    if (requestedModel.startsWith('groq:') && modelId !== requestedModel) {
+        console.log(`[LLM] Falling back from ${requestedModel} to ${modelId} (GROQ_API_KEY missing, Gemini available)`);
+    }
 
     // Combine system prompt and user message into a single prompt (matches trigger task schema)
     const prompt = [
@@ -319,7 +426,7 @@ async function executeLLMViaTrigger(
 
     const payload = {
         prompt,
-        model: (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct',
+        model: modelId,
         images,
     };
 
@@ -346,17 +453,17 @@ async function executeLLMViaTrigger(
 async function executeCropImageViaTrigger(
     node: Node,
     inputs: Record<string, unknown>,
-    runId: string
+    processApiBaseUrl: string
 ): Promise<string> {
     const imageUrl = inputs['image_url'] as string;
+    const publicImageUrl = normalizeTaskMediaUrl(imageUrl, processApiBaseUrl);
     if (!imageUrl) {
         throw new Error('Image URL is required');
     }
 
     // Check for blob: URLs - Transloadit cannot access browser-only URLs
-    if (imageUrl.startsWith('blob:')) {
-        console.warn('[Crop] blob: URL detected, returning original');
-        return imageUrl;
+    if (publicImageUrl.startsWith('blob:')) {
+        throw new Error('Image upload incomplete: The image URL is a local blob. Please re-upload the image before running the workflow.');
     }
 
     // Compute actual pixel crop coordinates from the node's dimension data
@@ -383,7 +490,7 @@ async function executeCropImageViaTrigger(
     console.log(`[Crop] Source: ${sourceW}x${sourceH}, Crop: ${cropW}x${cropH}, Offset: (${x}, ${y})`);
 
     const payload = {
-        imageUrl,
+        imageUrl: publicImageUrl,
         x,
         y,
         width: Math.min(cropW, sourceW),
@@ -403,22 +510,23 @@ async function executeCropImageViaTrigger(
         }
     } catch (error) {
         console.warn('Trigger.dev unavailable, falling back to direct execution:', error);
-        return executeCropImage(node, inputs);
+        return executeCropImage(node, inputs, processApiBaseUrl);
     }
 }
 
 async function executeExtractFrameViaTrigger(
     node: Node,
     inputs: Record<string, unknown>,
-    runId: string
+    processApiBaseUrl: string
 ): Promise<string> {
     const videoUrl = inputs['video_url'] as string;
+    const publicVideoUrl = normalizeTaskMediaUrl(videoUrl, processApiBaseUrl);
     if (!videoUrl) {
         throw new Error('Video URL is required');
     }
 
     // Guard against blob: URLs which cannot be accessed by the server
-    if (videoUrl.startsWith('blob:')) {
+    if (publicVideoUrl.startsWith('blob:')) {
         throw new Error('Video upload incomplete: The video URL is a local blob. Please re-upload the video before running the workflow.');
     }
 
@@ -426,7 +534,9 @@ async function executeExtractFrameViaTrigger(
     const timestampStr = (inputs['timestamp'] ?? (node.data as { timestamp?: string })?.timestamp ?? '0') as string;
     let timestampSeconds = 0;
 
-    if (timestampStr.includes(':')) {
+    if (timestampStr.includes('%')) {
+        timestampSeconds = 0;
+    } else if (timestampStr.includes(':')) {
         const parts = timestampStr.split(':').map(Number);
         if (parts.length === 3) {
             timestampSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
@@ -438,7 +548,7 @@ async function executeExtractFrameViaTrigger(
     }
 
     const payload = {
-        videoUrl,
+        videoUrl: publicVideoUrl,
         timestamp: timestampSeconds,
     };
 
@@ -455,7 +565,7 @@ async function executeExtractFrameViaTrigger(
         }
     } catch (error) {
         console.warn('Trigger.dev unavailable, falling back to direct execution:', error);
-        return executeExtractFrame(node, inputs);
+        return executeExtractFrame(node, inputs, processApiBaseUrl);
     }
 }
 
@@ -468,7 +578,13 @@ async function executeExtractFrameViaTrigger(
 async function executeLLM(node: Node, inputs: Record<string, unknown>): Promise<string> {
     console.log('[executeLLM] Starting direct LLM execution');
 
-    const modelId = (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct';
+    const requestedModel = (node.data as { model?: string })?.model || 'groq:meta-llama/llama-4-scout-17b-16e-instruct';
+    const modelId = resolveLLMModel(requestedModel);
+
+    if (requestedModel.startsWith('groq:') && modelId !== requestedModel) {
+        console.log(`[executeLLM] Falling back from ${requestedModel} to ${modelId} (GROQ_API_KEY missing, Gemini available)`);
+    }
+
     console.log('[executeLLM] Using model:', modelId);
 
     const systemPrompt = (inputs['system_prompt'] as string) || (node.data as { systemPrompt?: string })?.systemPrompt || '';
@@ -569,7 +685,7 @@ async function executeLLMViaGemini(
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
-        throw new Error('Google AI API key not configured (set GOOGLE_GENERATIVE_AI_API_KEY)');
+        throw new Error('Google AI API key not configured (set GOOGLE_GENERATIVE_AI_API_KEY or GOOGLE_AI_API_KEY)');
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -608,22 +724,29 @@ async function executeLLMViaGemini(
 }
 
 // Crop image execution using Transloadit
-async function executeCropImage(node: Node, inputs: Record<string, unknown>): Promise<string> {
+async function executeCropImage(
+    node: Node,
+    inputs: Record<string, unknown>,
+    processApiBaseUrl: string
+): Promise<string> {
     console.log('[executeCropImage] Starting crop execution');
     console.log('[executeCropImage] Inputs:', JSON.stringify(inputs, null, 2));
 
     const imageUrl = inputs['image_url'] as string;
+    const publicImageUrl = imageUrl.startsWith('/')
+        ? imageUrl
+        : normalizePublicUrl(imageUrl);
     if (!imageUrl) {
         throw new Error('Image URL is required');
     }
 
     // Check for blob: URLs - they can't be processed by Transloadit
-    if (imageUrl.startsWith('blob:')) {
+    if (publicImageUrl.startsWith('blob:')) {
         console.warn('[executeCropImage] blob: URL detected - Transloadit cannot access browser-only URLs');
         console.warn('[executeCropImage] Returning original URL as fallback (no crop applied)');
         // Return the original URL as-is since we can't crop blob: URLs server-side
         // The crop would need to happen in the browser for blob: URLs
-        return imageUrl;
+        return publicImageUrl;
     }
 
     // Get crop parameters
@@ -634,7 +757,7 @@ async function executeCropImage(node: Node, inputs: Record<string, unknown>): Pr
 
     console.log('[executeCropImage] Crop params:', { xPercent, yPercent, widthPercent, heightPercent });
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const baseUrl = processApiBaseUrl || 'http://localhost:3000';
     console.log('[executeCropImage] Calling /api/process at', baseUrl);
 
     const response = await fetch(`${baseUrl}/api/process`, {
@@ -642,7 +765,7 @@ async function executeCropImage(node: Node, inputs: Record<string, unknown>): Pr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             type: 'crop',
-            fileUrl: imageUrl,
+            fileUrl: publicImageUrl,
             x: Number(xPercent),
             y: Number(yPercent),
             width: Number(widthPercent) || 100,
@@ -662,8 +785,15 @@ async function executeCropImage(node: Node, inputs: Record<string, unknown>): Pr
 }
 
 // Extract frame execution using Transloadit
-async function executeExtractFrame(node: Node, inputs: Record<string, unknown>): Promise<string> {
+async function executeExtractFrame(
+    node: Node,
+    inputs: Record<string, unknown>,
+    processApiBaseUrl: string
+): Promise<string> {
     const videoUrl = inputs['video_url'] as string;
+    const publicVideoUrl = videoUrl.startsWith('/')
+        ? videoUrl
+        : normalizePublicUrl(videoUrl);
     if (!videoUrl) {
         throw new Error('Video URL is required');
     }
@@ -686,14 +816,14 @@ async function executeExtractFrame(node: Node, inputs: Record<string, unknown>):
         timestampSeconds = parseFloat(timestampStr) || 0;
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const baseUrl = processApiBaseUrl || 'http://localhost:3000';
 
     const response = await fetch(`${baseUrl}/api/process`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             type: 'frame',
-            fileUrl: videoUrl,
+            fileUrl: publicVideoUrl,
             timestamp: timestampSeconds,
         }),
     });
@@ -706,4 +836,3 @@ async function executeExtractFrame(node: Node, inputs: Record<string, unknown>):
     const result = await response.json();
     return result.resultUrl;
 }
-

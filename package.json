@@ -7,14 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "trigger:dev": "trigger-cli dev",
+    "trigger:dev": "npx trigger.dev@4.4.1 dev",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@clerk/nextjs": "^6.37.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^6.19.2",
-    "@trigger.dev/sdk": "4.3.3",
+    "@trigger.dev/sdk": "^4.4.1",
     "@xyflow/react": "^12.10.0",
     "dotenv": "^17.2.3",
     "framer-motion": "^11.18.2",
@@ -27,6 +27,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dom": "19.2.3",
     "react-dropzone": "^14.3.8",
+    "sharp": "^0.34.5",
     "sonner": "^2.0.7",
     "uuid": "^13.0.0",
     "zod": "^4.3.6",
@@ -34,6 +35,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@trigger.dev/build": "^4.4.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
@@ -43,10 +45,10 @@
     "eslint-config-next": "16.1.6",
     "prisma": "^6.19.2",
     "tailwindcss": "^4",
-    "trigger.dev": "4.3.3",
+    "trigger.dev": "^4.4.1",
     "typescript": "^5"
   },
   "trigger.dev": {
-    "endpointId": "proj_rdsuxydrzxxorhlynnfd"
+    "endpointId": "proj_nksgqxdvlbzdggpwmmer"
   }
 }

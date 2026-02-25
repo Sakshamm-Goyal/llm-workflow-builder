@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-const TRANSLOADIT_AUTH_KEY = process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY!;
-const TRANSLOADIT_AUTH_SECRET = process.env.TRANSLOADIT_AUTH_SECRET!;
+const TRANSLOADIT_AUTH_KEY = process.env.TRANSLOADIT_AUTH_KEY || process.env.NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY;
+const TRANSLOADIT_AUTH_SECRET = process.env.TRANSLOADIT_AUTH_SECRET;
 
 interface TransloaditParams {
     auth: {
@@ -13,6 +13,10 @@ interface TransloaditParams {
 }
 
 function generateSignature(params: TransloaditParams): string {
+    if (!TRANSLOADIT_AUTH_SECRET) {
+        throw new Error('Missing TRANSLOADIT_AUTH_SECRET');
+    }
+
     const toSign = JSON.stringify(params);
     const signature = crypto
         .createHmac('sha384', TRANSLOADIT_AUTH_SECRET)
@@ -29,6 +33,13 @@ function getExpiryDate(): string {
 
 export async function POST(request: NextRequest) {
     try {
+        if (!TRANSLOADIT_AUTH_KEY) {
+            return NextResponse.json(
+                { error: 'Missing Transloadit auth key. Set TRANSLOADIT_AUTH_KEY or NEXT_PUBLIC_TRANSLOADIT_AUTH_KEY.' },
+                { status: 500 }
+            );
+        }
+
         const { type = 'image' } = await request.json();
 
         const params: TransloaditParams = {

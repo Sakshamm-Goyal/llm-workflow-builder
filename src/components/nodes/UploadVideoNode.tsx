@@ -58,10 +58,31 @@ function UploadVideoNodeComponent({ id, data, selected }: NodeProps) {
         });
 
         if (!paramsResponse.ok) {
-            throw new Error(`Failed to get upload params: ${paramsResponse.status}`);
+            const errorText = await paramsResponse.text();
+            let detail = errorText;
+            try {
+                const errorPayload = JSON.parse(errorText);
+                detail = `${errorPayload.error || ''} ${errorPayload.message || ''}`.trim();
+            } catch {
+                // keep fallback plain text
+            }
+            throw new Error(`Failed to get upload params: ${paramsResponse.status} ${detail || paramsResponse.statusText}`);
         }
 
-        const { params, signature } = await paramsResponse.json();
+        const paramsResponseText = await paramsResponse.text();
+        let paramsPayload: { params?: string; signature?: string };
+        try {
+            paramsPayload = JSON.parse(paramsResponseText) as { params?: string; signature?: string };
+        } catch {
+            throw new Error(`Failed to parse upload params: ${paramsResponseText || paramsResponse.statusText}`);
+        }
+
+        const { params, signature } = paramsPayload;
+
+        if (!params || !signature) {
+            throw new Error('Upload params response is missing required fields');
+        }
+
         const formData = new FormData();
         formData.append('params', params);
         formData.append('signature', signature);
@@ -71,6 +92,20 @@ function UploadVideoNodeComponent({ id, data, selected }: NodeProps) {
             method: 'POST',
             body: formData,
         });
+
+        if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text();
+            let parsedMessage = '';
+            try {
+                const errorPayload = JSON.parse(errorText);
+                parsedMessage = `${errorPayload.error || ''} ${errorPayload.message || ''} ${errorPayload.reason || ''}`.trim();
+            } catch {
+                // Non-JSON response body
+            }
+            const detail = parsedMessage || errorText;
+            console.error('[Upload] Transloadit assembly request failed:', uploadResponse.status, detail);
+            throw new Error(`Transloadit upload failed: ${uploadResponse.status} ${detail}`);
+        }
 
         const assembly = await uploadResponse.json();
         if (assembly.error) throw new Error(assembly.message || 'Upload failed');

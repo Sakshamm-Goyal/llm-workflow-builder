@@ -67,7 +67,23 @@ function UploadImageNodeComponent({ id, data, selected }: NodeProps) {
             throw new Error(`Failed to get upload params: ${paramsResponse.status}`);
         }
 
-        const { params, signature, authKey } = await paramsResponse.json();
+        const paramsResponseText = await paramsResponse.text();
+        let paramsPayload: { params?: string; signature?: string; error?: string };
+        try {
+            paramsPayload = JSON.parse(paramsResponseText) as { params?: string; signature?: string; error?: string };
+        } catch {
+            throw new Error(`Failed to parse upload params: ${paramsResponseText || paramsResponse.statusText}`);
+        }
+
+        const { params, signature } = paramsPayload as {
+            params?: string;
+            signature?: string;
+            error?: string;
+        };
+
+        if (!params || !signature) {
+            throw new Error(paramsPayload.error || 'Upload params response is missing required fields');
+        }
         console.log('[Upload] Got Transloadit params, uploading file...');
 
         const formData = new FormData();
@@ -82,8 +98,16 @@ function UploadImageNodeComponent({ id, data, selected }: NodeProps) {
 
         if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
-            console.error('[Upload] Transloadit assembly request failed:', uploadResponse.status, errorText);
-            throw new Error(`Transloadit upload failed: ${uploadResponse.status}`);
+            let parsedMessage = '';
+            try {
+                const errorPayload = JSON.parse(errorText);
+                parsedMessage = `${errorPayload.error || ''} ${errorPayload.message || ''} ${errorPayload.reason || ''}`.trim();
+            } catch {
+                // Non-JSON error responses are fine to log as plain text.
+            }
+            const detail = parsedMessage || errorText;
+            console.error('[Upload] Transloadit assembly request failed:', uploadResponse.status, detail);
+            throw new Error(`Transloadit upload failed: ${uploadResponse.status} ${detail}`);
         }
 
         const assembly = await uploadResponse.json();
